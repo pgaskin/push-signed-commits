@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -168,6 +169,9 @@ func run(repo, branch, spec string) error {
 		return nil
 	}
 
+	slices.Reverse(commits)
+
+	var prevNewCommit OID
 	for i, commit := range commits {
 		verbose("[%d/%d] processing commit %s", i+1, len(commits), commit)
 
@@ -202,7 +206,7 @@ func run(repo, branch, spec string) error {
 				RepositoryNameWithOwner: repo,
 				BranchName:              branch,
 			},
-			ExpectedHeadOid: parent,
+			ExpectedHeadOid: cmp.Or(prevNewCommit, parent),
 			Message: gqlCommitMessage{
 				Headline: subject,
 				Body:     body,
@@ -281,6 +285,7 @@ func run(repo, branch, spec string) error {
 
 		if *DryRun {
 			os.Stdout.Write(append(inputJSON, '\n'))
+			prevNewCommit = OID(strings.Repeat("x", len(commit)))
 			continue
 		}
 
@@ -297,6 +302,8 @@ func run(repo, branch, spec string) error {
 			fmt.Fprintf(os.Stderr, "[%d/%d] -> %s\n", i+1, len(commits), newCommit)
 		}
 		fmt.Println(newCommit)
+
+		prevNewCommit = newCommit
 	}
 
 	return nil
