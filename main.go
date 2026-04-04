@@ -22,16 +22,21 @@ import (
 
 const MinGitMajor, MinGitMinor = 2, 38 // the minimum git version for the options we use.
 
+const DefaultGitHubGraphqlURL = "https://api.github.com/graphql"
+
 var (
-	Chdir       = flag.String("C", "", "change to a different directory before running the command")
-	Git         = flag.String("g", "", "use a different git binary (minimum version "+strconv.Itoa(MinGitMajor)+"."+strconv.Itoa(MinGitMinor)+")")
-	DryRun      = flag.Bool("n", false, "do not push commits, just dump the mutations to stdout, one line per commit")
-	GraphqlURL  = flag.String("u", "https://api.github.com/graphql", "github graphql endpoint")
-	Insecure    = flag.Bool("k", false, "do not validate ssl certificate")
-	Quiet       = flag.Bool("q", false, "do not print status messages to stderr")
-	Verbose     = flag.Bool("v", false, "print verbose information to stderr")
-	Debug       = flag.Bool("x", false, "print the git commands to stderr")
-	GitHubToken = os.Getenv("GITHUB_TOKEN")
+	Chdir    = flag.String("C", "", "change to a different directory before running the command")
+	Git      = flag.String("g", "", "use a different git binary (minimum version "+strconv.Itoa(MinGitMajor)+"."+strconv.Itoa(MinGitMinor)+")")
+	DryRun   = flag.Bool("n", false, "do not push commits, just dump the mutations to stdout, one line per commit")
+	Insecure = flag.Bool("k", false, "do not validate ssl certificates")
+	Quiet    = flag.Bool("q", false, "do not print status messages to stderr")
+	Verbose  = flag.Bool("v", false, "print verbose information to stderr")
+	Debug    = flag.Bool("x", false, "print the git commands to stderr")
+)
+
+var (
+	GitHubGraphqlURL = cmp.Or(os.Getenv("GITHUB_GRAPHQL_URL"), DefaultGitHubGraphqlURL)
+	GitHubToken      = os.Getenv("GITHUB_TOKEN")
 )
 
 func init() {
@@ -45,13 +50,22 @@ func usage() {
 	} else {
 		name = "push-signed-commits"
 	}
-	fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [options] username/repo target_branch rev|rev..rev\n", name)
+	fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [flags] username/repo target_branch rev|rev..rev\n", name)
+	fmt.Fprintf(flag.CommandLine.Output(), "\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "flags:\n")
 	flag.CommandLine.PrintDefaults()
 	fmt.Fprintf(flag.CommandLine.Output(), "\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "env:\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  GITHUB_GRAPHQL_URL    github graphql endpoint (default %q)\n", DefaultGitHubGraphqlURL)
+	fmt.Fprintf(flag.CommandLine.Output(), "  GITHUB_TOKEN          github token (required if not -n)\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "status:\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  0     success\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  1     error\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  2     invalid argument\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  30    not pushing anymore commits due to a commit with unsupported content\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "The final commit hashes will be written to stdout as they are pushed.\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "If a commit is encountered which cannot be pushed via the API, the command will exit with status 30 and no further commits will be pushed.\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "If any other error is encountered, the command will exit with a non-zero status.\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "The GitHub token is read from the GITHUB_TOKEN environment variable.\n")
 }
 
 func main() {
@@ -383,7 +397,7 @@ func ghGraphql[T any](query string, variables map[string]any) (*T, error) {
 	}
 	verbose("request body size %d", len(reqObjJSON))
 
-	req, err := http.NewRequest(http.MethodPost, *GraphqlURL, bytes.NewReader(reqObjJSON))
+	req, err := http.NewRequest(http.MethodPost, GitHubGraphqlURL, bytes.NewReader(reqObjJSON))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
