@@ -31,9 +31,13 @@ Tool to push a range of commits via the API so they get signed by GitHub.
 ### Example
 
 ```bash
+# create and push a commit
 git add .
 git commit -m 'test commit'
 go run github.com/pgaskin/push-signed-commits@v0.0.2 username/repo master HEAD
+
+# push all commits created on the current branch since the last pull
+go run github.com/pgaskin/push-signed-commits@v0.0.2 username/repo master HEAD@{u}..HEAD
 ```
 
 <!-- TODO: gh actions example -->
