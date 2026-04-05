@@ -15,22 +15,30 @@ import (
 	"strings"
 )
 
-var (
-	Chdir      = flag.String("C", "", "change to a different directory before running the command")
-	Git        = flag.String("g", "", "use a different git binary (minimum version "+strconv.Itoa(MinGitMajor)+"."+strconv.Itoa(MinGitMinor)+")")
-	DryRun     = flag.Bool("n", false, "do not push commits, just dump the mutations to stdout, one line per commit")
-	Insecure   = flag.Bool("k", false, "do not validate ssl certificates")
-	Quiet      = flag.Bool("q", false, "do not print status messages to stderr")
-	Verbose    = flag.Bool("v", false, "print verbose information to stderr")
-	Debug      = flag.Bool("x", false, "print the git commands to stderr")
-	Commit     = flag.Bool("commit", false, "commit the staged changes")
-	AllowEmpty = flag.Bool("allow-empty", false, "allow an empty commit to be created (only valid with -commit)")
-	UserAgent  = flag.String("user-agent", DefaultUserAgent, "override the user agent for api requests")
+const (
+	EnvGitHubGraphqlURL = "GITHUB_GRAPHQL_URL" // set by GitHub Actions
+	EnvGitHubToken      = "GITHUB_TOKEN"       // set by GitHub Actions, also the conventional env var name
 )
 
 var (
-	GitHubGraphqlURL = cmp.Or(os.Getenv("GITHUB_GRAPHQL_URL"), DefaultGitHubGraphqlURL)
-	GitHubToken      = os.Getenv("GITHUB_TOKEN")
+	GitHubGraphqlURL = cmp.Or(os.Getenv(EnvGitHubGraphqlURL), DefaultGitHubGraphqlURL)
+	GitHubToken      = os.Getenv(EnvGitHubToken)
+)
+
+var (
+	Chdir = flag.String("C", "", "change to a different directory before running the command")
+	Git   = flag.String("g", "", "use a different git binary (minimum version "+strconv.Itoa(MinGitMajor)+"."+strconv.Itoa(MinGitMinor)+")")
+
+	DryRun  = flag.Bool("n", false, "do not push commits, just dump the mutations to stdout, one line per commit")
+	Quiet   = flag.Bool("q", false, "do not print status messages to stderr")
+	Verbose = flag.Bool("v", false, "print verbose information to stderr")
+	Debug   = flag.Bool("x", false, "print the git commands to stderr")
+
+	Insecure  = flag.Bool("k", false, "do not validate ssl certificates")
+	UserAgent = flag.String("user-agent", DefaultUserAgent, "override the user agent for api requests")
+
+	Commit           = flag.Bool("commit", false, "commit the staged changes")
+	CommitAllowEmpty = flag.Bool("commit.allow-empty", false, "allow an empty commit to be created (only valid with -commit)")
 )
 
 func init() {
@@ -52,8 +60,8 @@ func usage() {
 	flag.CommandLine.PrintDefaults()
 	fmt.Fprintf(flag.CommandLine.Output(), "\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "env:\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  GITHUB_GRAPHQL_URL    github graphql endpoint (default %q)\n", DefaultGitHubGraphqlURL)
-	fmt.Fprintf(flag.CommandLine.Output(), "  GITHUB_TOKEN          github token (required if not -n)\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  %-20s  github graphql endpoint (default %q)\n", EnvGitHubGraphqlURL, DefaultGitHubGraphqlURL)
+	fmt.Fprintf(flag.CommandLine.Output(), "  %-20s  github token (required if not -n)\n", EnvGitHubToken)
 	fmt.Fprintf(flag.CommandLine.Output(), "\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "status:\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  0     success\n")
@@ -76,7 +84,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	if *AllowEmpty && !*Commit {
+	if *CommitAllowEmpty && !*Commit {
 		usage()
 		os.Exit(2)
 	}
@@ -169,7 +177,7 @@ func runCommit(repo, branch, message string) error {
 		verbose("diff %s %q", file.Status, file.Path)
 	}
 
-	if !*AllowEmpty && len(files) == 0 {
+	if !*CommitAllowEmpty && len(files) == 0 {
 		if !*Quiet {
 			fmt.Fprintf(os.Stderr, "nothing to commit in the staging area\n")
 		}
