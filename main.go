@@ -189,16 +189,13 @@ func run(repo, branch, spec string) error {
 		}
 		parent := parents[0]
 
-		subject, err := gitCommitSubject(commit)
+		message, err := gitCommitMessage(commit)
 		if err != nil {
 			return fmt.Errorf("get subject of commit %s: %w", commit, err)
 		}
-		verbose("subject %q", subject)
 
-		body, err := gitCommitBody(commit)
-		if err != nil {
-			return fmt.Errorf("get body of commit %s: %w", commit, err)
-		}
+		subject, body := cutCommitMessage(message)
+		verbose("subject %q", subject)
 		verbose("body %q", body)
 
 		input := gqlCreateCommitOnBranchInput{
@@ -559,28 +556,16 @@ func gitCommitParents(committish OID) (commits []OID, err error) {
 	return commits, nil
 }
 
-func gitCommitSubject(committish OID) (string, error) {
+func gitCommitMessage(committish OID) (string, error) {
 	buf, err := git("show",
-		"--no-patch",       // only what we ask for
-		"--format=%s",      // commit subject (i.e., first line)
+		"-s",               // only what we ask for, not the entire diff
+		"--format=%B",      // raw commit message
 		"--end-of-options", // no more options
 		string(committish)) // commit
 	if err != nil {
 		return "", err
 	}
-	return string(bytes.TrimSuffix(buf, []byte{'\n'})), nil
-}
-
-func gitCommitBody(committish OID) (string, error) {
-	buf, err := git("show",
-		"--no-patch",       // only what we ask for
-		"--format=%b",      // commit body
-		"--end-of-options", // no more options
-		string(committish)) // commit
-	if err != nil {
-		return "", err
-	}
-	return string(bytes.TrimSuffix(buf, []byte{'\n'})), nil
+	return string(buf), nil // yes, we keep the trailing newline since that's how git stores it
 }
 
 type gitDiffStatus byte
@@ -767,6 +752,19 @@ func git(args ...string) ([]byte, error) {
 	return buf, err
 }
 
+// cutCommitMessage splits m into the subject and body for pretty-printing
+// according to git's rules (see git/pretty.c format_subject), does NOT merge
+// the subject into a single line (so subject isn't exactly equal to
+// --format=%s).
+func cutCommitMessage(m string) (subject, body string) {
+	subject = trimBlankLinesStart(m)
+	subject, body, _ = cutBlankLine(subject)
+	subject = trimBlankLinesEnd(subject)
+	body = trimBlankLinesStart(body)
+	body = trimBlankLinesEnd(body)
+	return
+}
+
 func verbose(format string, a ...any) {
 	if *Verbose {
 		fmt.Fprintf(os.Stderr, format+"\n", a...)
@@ -789,4 +787,46 @@ func appendMaybeQuoteToASCII(dst []byte, s string) []byte {
 		dst = append(dst[:i], s...)
 	}
 	return dst
+}
+
+const asciiSpace = " \t\n\v\f\r"
+
+func trimBlankLinesStart(s string) string {
+	for {
+		i := strings.IndexByte(s, '\n')
+		if i == -1 {
+			return s
+		}
+		if strings.TrimLeft(s[:i], asciiSpace) != "" {
+			return s
+		}
+		s = s[i+1:]
+	}
+}
+
+func trimBlankLinesEnd(s string) string {
+	for {
+		i := strings.LastIndexByte(s, '\n')
+		if i == -1 {
+			return s
+		}
+		if strings.TrimLeft(s[i+1:], asciiSpace) != "" {
+			return s
+		}
+		s = s[:i]
+	}
+}
+
+func cutBlankLine(s string) (before, after string, found bool) {
+	rest := s
+	for {
+		i := strings.IndexByte(rest, '\n')
+		if i == -1 {
+			return s, "", false
+		}
+		if strings.TrimLeft(rest[:i], asciiSpace) == "" {
+			return s[:len(s)-len(rest)], rest[i+1:], true
+		}
+		rest = rest[i+1:]
+	}
 }
