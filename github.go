@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"crypto"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
@@ -82,7 +83,7 @@ func ghAppJWT(appID int64, key *rsa.PrivateKey) (string, error) {
 		`,"iss":"`+strconv.FormatInt(appID, 10)+`"}`))
 
 	sha := sha256.Sum256(jwt)
-	sig, err := rsa.SignPKCS1v15(nil, key, crypto.SHA256, sha[:])
+	sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, sha[:])
 	if err != nil {
 		return "", err
 	}

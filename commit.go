@@ -118,7 +118,7 @@ func main() {
 
 	if err := run(flag.Arg(0), flag.Arg(1), flag.Arg(2)); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		if _, ok := errors.AsType[*notPushableError](err); ok {
+		if errors.As(err, new(*notPushableError)) {
 			os.Exit(30)
 		}
 		os.Exit(1)

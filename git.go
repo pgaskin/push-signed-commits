@@ -89,8 +89,10 @@ func gitCommitParents(committish OID) (commits []OID, err error) {
 	if err != nil {
 		return nil, err
 	}
-	for line := range bytes.Lines(buf) {
-		oid := OID(line[:len(line)-1])
+	for len(buf) > 0 {
+		var line []byte
+		line, buf, _ = bytes.Cut(buf, []byte{'\n'})
+		oid := OID(line)
 		if !oid.Valid() {
 			return nil, gitParseErrf("invalid oid %q", oid)
 		}

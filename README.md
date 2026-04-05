@@ -49,34 +49,34 @@ Create verified commits for bots or workflows via the GitHub API.
 
 ### Examples
 
-See `go run github.com/pgaskin/push-signed-commits@v0.0.4 -help` for more information.
+See `go run github.com/pgaskin/push-signed-commits@v0.0.5 -help` for more information.
 
 ##### Simple
 
 ```bash
 # create and push a commit directly (and skip it if there aren't any changes to commit)
 git add .
-go run github.com/pgaskin/push-signed-commits@v0.0.4 -commit username/repo master $'commit message subject\n\ncommit message body'
+go run github.com/pgaskin/push-signed-commits@v0.0.5 -commit username/repo master $'commit message subject\n\ncommit message body'
 
 # also automatically create and revoke an app installation token
 export APP_PRIVATE_KEY=... # base64-encoded or escaped app private key
 git add .
-go run github.com/pgaskin/push-signed-commits@v0.0.4 -app 12345 -commit username/repo master $'commit message subject\n\ncommit message body'
+go run github.com/pgaskin/push-signed-commits@v0.0.5 -app 12345 -commit username/repo master $'commit message subject\n\ncommit message body'
 
 # create and push a commit using git
 git add .
 git commit -m 'test commit'
-go run github.com/pgaskin/push-signed-commits@v0.0.4 username/repo master HEAD
+go run github.com/pgaskin/push-signed-commits@v0.0.5 username/repo master HEAD
 
 # push all commits created on the current branch since the last pull
-go run github.com/pgaskin/push-signed-commits@v0.0.4 username/repo master HEAD@{u}..HEAD
+go run github.com/pgaskin/push-signed-commits@v0.0.5 username/repo master HEAD@{u}..HEAD
 ```
 
 ##### GitHub Actions
 
 ```yaml
 - run: date +%Y-%m-%d > date.txt
-- run: git add . && go run github.com/pgaskin/push-signed-commits@v0.0.4 -commit "$GITHUB_REPOSITORY" "$GITHUB_REF" "automatic update"
+- run: git add . && go run github.com/pgaskin/push-signed-commits@v0.0.5 -commit "$GITHUB_REPOSITORY" "$GITHUB_REF" "automatic update"
   env:
     GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 ```
@@ -91,7 +91,7 @@ go run github.com/pgaskin/push-signed-commits@v0.0.4 username/repo master HEAD@{
     filter: blob:none
     fetch-depth: 0
 - run: date +%Y-%m-%d > other-repo/date.txt
-- run: git add . && go run github.com/pgaskin/push-signed-commits@v0.0.4 -app ${{vars.APP_ID}} -commit username/other-repo data "automatic update"
+- run: git add . && go run github.com/pgaskin/push-signed-commits@v0.0.5 -app ${{vars.APP_ID}} -commit username/other-repo data "automatic update"
   env:
     APP_PRIVATE_KEY: ${{secrets.APP_PRIVATE_KEY}}
   working-directory: other-repo

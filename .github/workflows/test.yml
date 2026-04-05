@@ -19,6 +19,9 @@ jobs:
           - ubuntu-latest
           - windows-latest
           - macos-latest
+        go:
+          - 1.22.x
+          - stable
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -27,7 +30,7 @@ jobs:
           fetch-tags: true
       - uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ matrix.go }}
       - run: go vet .
       - run: mkdir cover && echo .cover >> .git/info/exclude
       - run: go test -v -cover . -test.gocoverdir=cover
