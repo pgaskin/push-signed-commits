@@ -1,6 +1,6 @@
 # push-signed-commits
 
-Tool to push a range of commits via the API so they get signed by GitHub.
+Create verified commits for bots or workflows via the GitHub API.
 
 ### Features
 
@@ -16,6 +16,7 @@ Tool to push a range of commits via the API so they get signed by GitHub.
     - Symlink update/creation.
     - Submodule update/creation.
     - Non-regular (i.e., executable) file update/creation.
+    - *Note: I've opened a feature request to add support for these types.*
   - Uses git to do the diffing natively and reads directly from the repository rather than the working directory (unlike a few of the similar alternatives).
     - The contents will be correct.
     - The `core.autocrlf` option will be applied consistently (since git does it when adding to the index).
@@ -24,7 +25,7 @@ Tool to push a range of commits via the API so they get signed by GitHub.
 - High-quality implementation:
   - Much more error checking and validation than other similar tools.
   - Minimal implementation.
-  - No dependencies other than the native git command
+  - No dependencies other than the native git command.
   - 100% hand-coded and tested.
 
 ### Limitations
