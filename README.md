@@ -27,6 +27,8 @@ Create verified commits for bots or workflows via the GitHub API.
   - Minimal implementation.
   - No dependencies other than the native git command.
   - 100% hand-coded and tested.
+- Automatically retries failed API calls.
+- Supports automatically creating and revoking an app installation token.
 
 ### Limitations
 
@@ -56,15 +58,20 @@ A working version should continue to work indefinitely, as it uses core git func
 ```bash
 # create and push a commit directly (and skip it if there aren't any changes to commit)
 git add .
-go run github.com/pgaskin/push-signed-commits@v0.0.3 -commit username/repo master $'commit message subject\n\ncommit message body'
+go run github.com/pgaskin/push-signed-commits@v0.0.4 -commit username/repo master $'commit message subject\n\ncommit message body'
+
+# also automatically create and revoke an app installation token
+export APP_PRIVATE_KEY=... # base64-encoded or escaped app private key
+git add .
+go run github.com/pgaskin/push-signed-commits@v0.0.4 -app 12345 -commit username/repo master $'commit message subject\n\ncommit message body'
 
 # create and push a commit using git
 git add .
 git commit -m 'test commit'
-go run github.com/pgaskin/push-signed-commits@v0.0.3 username/repo master HEAD
+go run github.com/pgaskin/push-signed-commits@v0.0.4 username/repo master HEAD
 
 # push all commits created on the current branch since the last pull
-go run github.com/pgaskin/push-signed-commits@v0.0.3 username/repo master HEAD@{u}..HEAD
+go run github.com/pgaskin/push-signed-commits@v0.0.4 username/repo master HEAD@{u}..HEAD
 ```
 
 <!-- TODO: gh actions example -->

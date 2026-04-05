@@ -3,7 +3,10 @@ package main
 import (
 	"cmp"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
@@ -16,11 +19,13 @@ import (
 )
 
 const (
+	EnvGitHubApiURL     = "GITHUB_API_URL"     // set by GitHub Actions
 	EnvGitHubGraphqlURL = "GITHUB_GRAPHQL_URL" // set by GitHub Actions
 	EnvGitHubToken      = "GITHUB_TOKEN"       // set by GitHub Actions, also the conventional env var name
 )
 
 var (
+	GitHubApiURL     = cmp.Or(os.Getenv(EnvGitHubApiURL), DefaultGitHubApiURL)
 	GitHubGraphqlURL = cmp.Or(os.Getenv(EnvGitHubGraphqlURL), DefaultGitHubGraphqlURL)
 	GitHubToken      = os.Getenv(EnvGitHubToken)
 )
@@ -36,6 +41,9 @@ var (
 
 	Insecure  = flag.Bool("k", false, "do not validate ssl certificates")
 	UserAgent = flag.String("user-agent", DefaultUserAgent, "override the user agent for api requests")
+
+	App    = flag.Int64("app", 0, "use a github app installation token for the specified app id (the installation id will be looked up for the target repo)")
+	AppKey = flag.String("app.key", "APP_PRIVATE_KEY", "name of an environment variable containing the private key (value can be base64-encoded or have \\n escaped newlines)")
 
 	Commit           = flag.Bool("commit", false, "commit the staged changes")
 	CommitAllowEmpty = flag.Bool("commit.allow-empty", false, "allow an empty commit to be created (only valid with -commit)")
@@ -60,8 +68,9 @@ func usage() {
 	flag.CommandLine.PrintDefaults()
 	fmt.Fprintf(flag.CommandLine.Output(), "\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "env:\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  %-20s  github rest api endpoint (default %q)\n", EnvGitHubApiURL, DefaultGitHubApiURL)
 	fmt.Fprintf(flag.CommandLine.Output(), "  %-20s  github graphql endpoint (default %q)\n", EnvGitHubGraphqlURL, DefaultGitHubGraphqlURL)
-	fmt.Fprintf(flag.CommandLine.Output(), "  %-20s  github token (required if not -n)\n", EnvGitHubToken)
+	fmt.Fprintf(flag.CommandLine.Output(), "  %-20s  github token (required if not -n or -app)\n", EnvGitHubToken)
 	fmt.Fprintf(flag.CommandLine.Output(), "\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "status:\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  0     success\n")
@@ -86,6 +95,11 @@ func main() {
 
 	if *CommitAllowEmpty && !*Commit {
 		usage()
+		os.Exit(2)
+	}
+
+	if *App != 0 && (*AppKey == "" || os.Getenv(*AppKey) == "") {
+		fmt.Fprintf(os.Stderr, "error: app key must point to a non-empty environment variable\n")
 		os.Exit(2)
 	}
 
@@ -155,6 +169,58 @@ func run(repo, branch, specOrMessage string) error {
 		fmt.Fprintf(os.Stderr, "warning: failed to parse git version %q, will continue anyways\n", ver)
 	} else if !(major > MinGitMajor || (major == MinGitMajor && minor >= MinGitMinor)) {
 		return fmt.Errorf("git %q is too old (we need at least %d.%d)", ver, MinGitMajor, MinGitMinor)
+	}
+
+	if !*DryRun && *App != 0 {
+		if !*Quiet {
+			fmt.Fprintf(os.Stderr, "generating app token for app %d\n", *App)
+		}
+		keyStr := os.Getenv(*AppKey)
+		keyStr = strings.ReplaceAll(keyStr, `\n`, "\n")
+		if buf, err := base64.StdEncoding.DecodeString(keyStr); err == nil {
+			keyStr = string(buf)
+		}
+		keyBlock, _ := pem.Decode([]byte(keyStr))
+		if keyBlock == nil {
+			return fmt.Errorf("failed to decode app private key pem")
+		}
+		if keyBlock.Type != "RSA PRIVATE KEY" {
+			return fmt.Errorf("app private key is not rsa, got %q", keyBlock.Type)
+		}
+		key, err := x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+		if err != nil {
+			return fmt.Errorf("parse app private rsa key")
+		}
+		jwt, err := ghAppJWT(*App, key)
+		if err != nil {
+			return fmt.Errorf("generate app token for app %d: %w", *App, err)
+		}
+
+		if !*Quiet {
+			fmt.Fprintf(os.Stderr, "getting app installation for repo %q\n", repo)
+		}
+		installID, err := ghGetRepoInstallation(repo, jwt)
+		if err != nil {
+			return fmt.Errorf("get app installation for repo %q: %w", repo, err)
+		}
+
+		if !*Quiet {
+			fmt.Fprintf(os.Stderr, "creating app installation token for repo %q installation %d\n", repo, installID)
+		}
+		token, err := ghCreateInstallationToken(jwt, repo, installID)
+		if err != nil {
+			return fmt.Errorf("create app installation token for repo %q installation %d: %w", repo, installID, err)
+		}
+		defer func() {
+			if !*Quiet {
+				fmt.Fprintf(os.Stderr, "revoking app installation token\n")
+			}
+			if err := ghRevokeInstallationToken(token); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to revoke app installationi token: %v\n", err)
+			}
+		}()
+
+		GitHubToken = token
 	}
 
 	if *Commit {

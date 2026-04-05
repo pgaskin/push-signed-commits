@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"cmp"
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -11,6 +14,7 @@ import (
 	"math"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -19,7 +23,10 @@ import (
 	"time"
 )
 
-const DefaultGitHubGraphqlURL = "https://api.github.com/graphql"
+const (
+	DefaultGitHubApiURL     = "https://api.github.com"
+	DefaultGitHubGraphqlURL = "https://api.github.com/graphql"
+)
 
 var DefaultUserAgent = func() string {
 	var ua strings.Builder
@@ -64,6 +71,178 @@ var DefaultUserAgent = func() string {
 
 	return ua.String()
 }()
+
+func ghAppJWT(appID int64, key *rsa.PrivateKey) (string, error) {
+	var jwt []byte
+	jwt = base64.RawURLEncoding.AppendEncode(jwt, []byte(`{"alg":"RS256","typ":"JWT"}`))
+	jwt = append(jwt, '.')
+	jwt = base64.RawURLEncoding.AppendEncode(jwt, []byte(`{`+
+		`"iat":`+strconv.FormatInt(time.Now().Add(-time.Minute).Unix(), 10)+
+		`,"exp":`+strconv.FormatInt(time.Now().Add(time.Minute*1).Unix(), 10)+
+		`,"iss":"`+strconv.FormatInt(appID, 10)+`"}`))
+
+	sha := sha256.Sum256(jwt)
+	sig, err := rsa.SignPKCS1v15(nil, key, crypto.SHA256, sha[:])
+	if err != nil {
+		return "", err
+	}
+
+	jwt = append(jwt, '.')
+	jwt = base64.RawURLEncoding.AppendEncode(jwt, sig)
+	return string(jwt), nil
+}
+
+func ghGetRepoInstallation(repo, jwt string) (int64, error) {
+	verbose("getting app installation id for repo %q", repo)
+
+	u, err := url.Parse(GitHubApiURL)
+	if err != nil {
+		return 0, fmt.Errorf("create request: %w", err)
+	}
+	u = u.JoinPath("/repos", repo, "installation")
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return 0, fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2026-03-10")
+	req.Header.Set("Authorization", "Bearer "+jwt)
+	req.Header.Set("User-Agent", cmp.Or(*UserAgent, DefaultUserAgent))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("do request: %w", err)
+	}
+	buf, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return 0, fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("response status %d (body: %q)", resp.StatusCode, buf)
+	}
+
+	var obj struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(buf, &obj); err != nil {
+		return 0, fmt.Errorf("parse response: %w", err)
+	}
+	if obj.ID == 0 {
+		return 0, fmt.Errorf("parse response: missing installation id")
+	}
+	verbose("got installation id %d", obj.ID)
+
+	return obj.ID, nil
+}
+
+func ghCreateInstallationToken(jwt, repo string, installID int64) (string, error) {
+	verbose("getting app installation token for repo %q", repo)
+
+	if _, r, ok := strings.Cut(repo, "/"); ok {
+		repo = r
+	}
+	reqObjJSON, err := json.Marshal(map[string]any{
+		"repositories": []string{repo},
+		"permissions": map[string]string{
+			"contents": "write",
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("marshal request: %w", err)
+	}
+
+	u, err := url.Parse(GitHubApiURL)
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+	u = u.JoinPath("/app", "installations", strconv.FormatInt(installID, 10), "access_tokens")
+
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(reqObjJSON))
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Length", strconv.Itoa(len(reqObjJSON)))
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2026-03-10")
+	req.Header.Set("Authorization", "Bearer "+jwt)
+	req.Header.Set("User-Agent", cmp.Or(*UserAgent, DefaultUserAgent))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("do request: %w", err)
+	}
+	buf, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return "", fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusCreated {
+		return "", fmt.Errorf("response status %d (body: %q)", resp.StatusCode, buf)
+	}
+
+	var obj struct {
+		Token       string `json:"token"`
+		Permissions struct {
+			Contents string `json:"contents"`
+		} `json:"permissions"`
+	}
+	if err := json.Unmarshal(buf, &obj); err != nil {
+		return "", fmt.Errorf("parse response: %w", err)
+	}
+	if obj.Token == "" {
+		return "", fmt.Errorf("parse response: missing token")
+	}
+	if obj.Permissions.Contents != "write" {
+		return "", fmt.Errorf("installation does not have contents:write access")
+	}
+	verbose("got installation token")
+
+	return obj.Token, nil
+}
+
+func ghRevokeInstallationToken(token string) error {
+	verbose("revoking app installation token")
+
+	u, err := url.Parse(GitHubApiURL)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	u = u.JoinPath("/installation", "token")
+
+	req, err := http.NewRequest(http.MethodDelete, u.String(), nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2026-03-10")
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("User-Agent", cmp.Or(*UserAgent, DefaultUserAgent))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("do request: %w", err)
+	}
+	buf, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("response status %d (body: %q)", resp.StatusCode, buf)
+	}
+	verbose("app installation token revoked")
+
+	return nil
+}
 
 type gqlCreateCommitOnBranchInput struct {
 	Branch          gqlCommittableBranch `json:"branch"`
@@ -189,7 +368,7 @@ func ghGraphql[T any](query string, variables map[string]any) (*T, error) {
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			return nil, fmt.Errorf("create request: %w", err)
+			return nil, fmt.Errorf("do request: %w", err)
 		}
 		buf, err = io.ReadAll(resp.Body)
 		resp.Body.Close()
