@@ -102,7 +102,9 @@ func gitCommitParents(committish OID) (commits []OID, err error) {
 }
 
 func gitCommitMessage(committish OID) (string, error) {
-	buf, err := git("show",
+	buf, err := git(
+		"-c", "i18n.logOutputEncoding=UTF-8", // if the commit message is not UTF-8, re-encode it
+		"show",             // show a formatted object
 		"-s",               // only what we ask for, not the entire diff
 		"--format=%B",      // raw commit message
 		"--end-of-options", // no more options

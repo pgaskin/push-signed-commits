@@ -11,8 +11,9 @@ Create verified commits for bots or workflows via the GitHub API.
 - Guarantees the correctness and fidelity of pushed commits.
   - Supports pushing empty commits.
   - Specifies the expected parent commit while pushing.
-  - Will preserve multi-line commit message subjects and bodies.
-  - Will refuse to push commits which can't be fully represented via the API, including ones with:
+  - Preserves multi-line commit message subjects and bodies.
+  - Converts non-utf-8 commit messages to utf-8.
+  - Refuses to push commits which can't be fully represented via the API, including ones with:
     - Symlink update/creation.
     - Submodule update/creation.
     - Non-regular (i.e., executable) file update/creation.
