@@ -25,6 +25,7 @@ var (
 	Debug      = flag.Bool("x", false, "print the git commands to stderr")
 	Commit     = flag.Bool("commit", false, "commit the staged changes")
 	AllowEmpty = flag.Bool("allow-empty", false, "allow an empty commit to be created (only valid with -commit)")
+	UserAgent  = flag.String("user-agent", DefaultUserAgent, "override the user agent for api requests")
 )
 
 var (
