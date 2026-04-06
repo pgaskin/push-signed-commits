@@ -23,6 +23,7 @@ jobs:
         go:
           - 1.21.x
           - stable
+    name: standalone (${{ matrix.os }}, go ${{ matrix.go }})
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -45,6 +46,7 @@ jobs:
           - ubuntu-latest
           - windows-latest
           - macos-latest
+    name: action (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -52,3 +54,16 @@ jobs:
         with:
           dry-run: true # don't actually push anything
           revision: HEAD^^^..HEAD # last 3 commits
+  gha-tsc:
+    name: action tsc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+      - run: npm ci
+      - run: npx tsc

@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+
 /*
 Here's a bit about how I designed this action.
 
