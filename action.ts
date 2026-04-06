@@ -3,59 +3,173 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { Console } from 'node:console'
+import { styleText } from 'node:util'
+
+globalThis.console = new Console({
+  stdout: process.stdout,
+  stderr: process.stderr,
+  colorMode: true,
+})
+
 async function main() {
-  console.log(await findLatestGo())
+  try {
+    return await run(import.meta.dirname)
+  } catch (err) {
+    console.error(`internal error: ${err}`)
+    return 1
+  }
 }
 
-async function findLatestGo(): Promise<string | undefined> {
+async function run(module: string, ...args: string[]): Promise<number> {
+  await using out = await build(module)
+  if (DEBUG) {
+    console.log(`info: running ${out.path}`)
+  }
+  return await new Promise((resolve, reject) => {
+    const child = child_process.spawn(out.path, args, {
+      stdio: 'inherit',
+    })
+    child.on('error', err => reject(err))
+    child.on('close', (code, signal) => {
+      if (signal) reject(new Error(`killed by signal ${signal}`))
+      resolve(code || 0)
+    })
+  })
+}
+
+async function build(module: string) {
+  using _group = ghaGroup('Build')
+
+  const go = await findLatestGo()
+  if (!go) {
+    throw new Error(`no suitable go toolchains found in PATH or agent tool cache${SELFHOSTED ? ` (since you're on a self-hosted runer, you may need to install Go yourself)` : ``}`)
+  }
+  if (DEBUG) {
+    console.log(`selected latest go toolchain ${go.root} (version: ${go.version})`)
+  }
+
+  const gomod = await parseGoMod(path.join(module, 'go.mod'))
+  if (gomod.minor > go.minor! || (gomod.minor === go.minor && gomod.patch > go.patch!)) {
+    throw new Error(`latest go toolchain ${go.root} is too old for ${gomod.path} (wanted at least 1.${gomod.minor}.${gomod.patch}, got ${go.version})`)
+  }
+
+  const name = gomod.path.replace(/^.+\//, '')
+  const outdir = await fs.mkdtemp(path.join(os.tmpdir(), 'push-signed-commits-'))
+  const out = path.join(outdir, withExeSuffix(name))
+
+  if (DEBUG) {
+    console.log(`Building ${gomod.path} to ${out} with ${go.root} (${go.version})`)
+  } else {
+    console.log(`Building ${gomod.path} with ${go.root} (${go.version})`)
+  }
+  try {
+    await runGo(false, goCmd(go.root), 'build', '-C', module, '-mod=readonly', '-trimpath', '-ldflags', '-X main.version=action', '-tags', 'gha', '-o', out)
+  } catch (err) {
+    throw new Error(`failed to build ${gomod.path} with ${go.root} (${go.version}): ${err}}`)
+  }
+    console.log(`Built ${out}`)
+  // TODO: cache?
+
+  return {
+    path: out,
+    goversion: go.version,
+    async [Symbol.asyncDispose]() {
+      try {
+        await fs.rm(out)
+        await fs.rmdir(outdir)
+      } catch (err) {
+        if (DEBUG) {
+          console.warn(`warning: failed to remote ${outdir}: ${err}`)
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Extract the module and go directives from a go.mod file.
+ */
+async function parseGoMod(modfile: string) {
+  const gomod = await fs.readFile(modfile, {
+    encoding: 'utf-8',
+  })
+
+  const gomodpathMatch = gomod.match(/^module\s*(.+)$/m)
+  if (!gomodpathMatch) {
+    throw new Error(`failed to parse go module path from go.mod file ${modfile}`)
+  }
+  const path = gomodpathMatch[1]
+
+  const gomodver = gomod.match(/^go\s*1\.([0-9]+)(?:\.([0-9])+)?(?:\s|$)/m)
+  if (!gomodver) {
+    throw new Error(`failed to parse go version from go.mod file ${modfile}`)
+  }
+  if (DEBUG) {
+    console.log(`info: parsed go.mod (path: ${path}, go version: ${gomodver}`)
+  }
+  return {
+    path,
+    major: 1,
+    minor: parseInt(gomodver[1]),
+    patch: parseInt(gomodver[2] || '0'),
+   }
+}
+
+/**
+ * Find the latest available go toolchain.
+ */
+async function findLatestGo() {
+  console.log('Looking for latest Go toolchain')
+  console.group()
+  using _group = {[Symbol.dispose]() { console.groupEnd() }}
+
   let maxVersion: string | undefined
   let maxRoot: string | undefined
-  let maxMajor: number | undefined
   let maxMinor: number | undefined
+  let maxPatch: number | undefined
   for await (const tc of goToolchains()) {
+    console.log(`${tc.GOROOT} (${tc.GOVERSION})`)
+    console.group()
+    using _group = {[Symbol.dispose]() { console.groupEnd() }}
     const ver = tc.GOVERSION.match(/^go1\.([0-9]+)(?:\.([0-9])+)?([a-z0-9]+)?(-\S+)?(?:\s|$)/)
     if (!ver) {
-      if (DEBUG) {
-        console.warn(`warning: skipping toolchain ${tc.GOROOT} with unparseable GOVERSION ${tc.GOVERSION}`)
-      }
+      console.warn(styleText('yellow', `Skipping toolchain due to unparseable GOVERSION`))
       continue
     }
-    const major = 1
     const minor = parseInt(ver[1])
     const patch = parseInt(ver[2] || '0')
     const pre = !!ver[3]
+    // @ts-ignore
     const custom = !!ver[4]
     if (pre) {
-      if (DEBUG) {
-        console.warn(`warning: skipping toolchain ${tc.GOROOT} with pre-release GOVERSION ${tc.GOVERSION}`)
-      }
+      console.warn(styleText('yellow', `Skipping toolchain due to pre-release GOVERSION`))
       continue
     }
-    if (DEBUG) {
-      console.log(`info: found go toolchain ${tc.GOROOT} with version ${JSON.stringify({major, minor, patch, pre, custom})}`)
-    }
-    if (maxVersion && major < maxMajor! || (major === maxMajor && minor < maxMinor!)) {
+    if (maxVersion && minor < maxMinor! || (minor === maxMinor && patch < maxPatch!)) {
       continue
     }
     maxVersion = tc.GOVERSION
     maxRoot = tc.GOROOT
-    maxMajor = major
     maxMinor = minor
+    maxPatch = patch
   }
-  if (maxVersion) {
-    if (DEBUG) {
-      console.log(`selected latest go toolchain ${maxRoot} (version: ${maxVersion})`)
-    }
-    return maxRoot
+  return !maxRoot ? undefined : {
+    root: maxRoot as string,
+    version: maxVersion as string,
+    major: 1,
+    minor: maxMinor as number,
+    patch: maxPatch as number,
   }
-  return
 }
 
 async function *goToolchains(): AsyncGenerator<GoEnv> {
   try {
     yield goEnv()
   } catch (err) {
-    console.warn(`warning: failed to get system go toolchain info from default go install: ${err}`)
+    if (typeof err !== 'object' || err == null || !('code' in err) || err.code !== 'ENOENT') {
+      console.warn(styleText('yellow', `Failed to get system go toolchain info from default go install: ${err}`))
+    }
   }
   yield* cachedGoVersions()
 }
@@ -87,9 +201,7 @@ async function *cachedGoVersions(): AsyncGenerator<GoEnv> {
       }
       yield await goEnv(goCmd(dir))
     } catch (err) {
-      if (DEBUG) {
-        console.warn(`warning: failed to get go toolchain info from ${dir}: ${err}`)
-      }
+      console.error(styleText('yellow', `Failed to get go toolchain info from ${dir}: ${err}`))
       continue
     }
   }
@@ -115,7 +227,7 @@ const GOENV_NONEMPTY_VARS = ['GOROOT', 'GOVERSION'] as const
  * Gets the Go environment variables.
  */
 async function goEnv(exe: string = 'go'): Promise<GoEnv> {
-  const env = await go(true, exe, 'env', '-json') as GoEnv
+  const env = await runGo(true, exe, 'env', '-json') as GoEnv
   for (const key of GOENV_NONEMPTY_VARS) {
     if (key in env && typeof env[key] === 'string' && env[key]) {
       continue
@@ -130,9 +242,9 @@ async function goEnv(exe: string = 'go'): Promise<GoEnv> {
  * contents of stderr if it fails. Also adds some env vars to ensure consistent
  * behaviour.
  */
-function go<T extends boolean>(json: T, exe: string, ...args: string[]): Promise<T extends true ? any : string> {
+function runGo<T extends boolean>(json: T, exe: string, ...args: string[]): Promise<T extends true ? any : string> {
   if (DEBUG) {
-    console.log(`# ${exe} ${args.map(a => JSON.stringify(a)).join(" ")}`)
+    console.log(`# ${exe} ${args.map(a => JSON.stringify(a)).join(' ')}`)
   }
   return new Promise((resolve, reject) => {
     const child = child_process.spawn(exe, args, {
@@ -142,6 +254,9 @@ function go<T extends boolean>(json: T, exe: string, ...args: string[]): Promise
         GOCACHEPROG: '',
         GOPROXY: 'off',
         GOVCS: 'off',
+        GOWORK: 'off',
+        CGO_ENABLED: '0',
+        GOFLAGS: '-buildvcs=false',
       },
     })
     const stdout: Buffer[] = []
@@ -168,13 +283,49 @@ function go<T extends boolean>(json: T, exe: string, ...args: string[]): Promise
 
 /**
  * Appends the Go executable suffix for the current platform.
- * 
+ *
  * Based on logic in:
  * - go@v1.26.1/src/cmd/go/internal/cfg/cfg.go
  */
 function withExeSuffix(name: string): string {
   const goexe = os.platform() == 'win32' ? '.exe' : ''
   return name + goexe
+}
+
+/**
+ * Create an expandable group in the output for the current scope.
+ */
+function ghaGroup(name: string): Disposable {
+  ghaCommand('group', {}, name)
+  return {
+    [Symbol.dispose]() {
+      ghaCommand('endgroup', {}, '')
+    }
+  }
+}
+
+/**
+ * Emits a command for GitHub Actions.
+ *
+ * Based on logic in:
+ * - actions/core@v3.0.0/src/command.ts
+ * - https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
+ */
+function ghaCommand(command: string, properties: {[key: string]: any}, message: string) {
+  let props = ''
+  if (properties) {
+    for (const [key, val] of Object.entries(properties)) {
+      if (val) {
+        if (props) {
+          props += ','
+        } else {
+          props += ' '
+        }
+        props += `${key}=${val.toString().replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A').replace(/:/g, '%3A').replace(/,/g, '%2C')}`
+      }
+    }
+  }
+  process.stdout.write(`::${command}${props}::${message.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}${os.EOL}`)
 }
 
 /**
@@ -185,4 +336,12 @@ function withExeSuffix(name: string): string {
  */
 const DEBUG = process.env['RUNNER_DEBUG'] === '1'
 
-await main()
+/**
+ * Whether the runner is self-hosted.
+ *
+ * Based on logic in:
+ * - actions/setup-go@v6.4.0/src/utils.ts
+ */
+const SELFHOSTED = process.env['RUNNER_ENVIRONMENT'] !== 'github-hosted' && (process.env['AGENT_ISSELFHOSTED'] === '1' || process.env['AGENT_ISSELFHOSTED'] === undefined)
+
+process.exit(await main())

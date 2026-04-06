@@ -15,17 +15,28 @@ var (
 	debugcmd = func(cmd string, args ...string) {}
 )
 
+var version string
+
 var UserAgent = func() string {
 	var ua strings.Builder
 
-	ua.WriteString("push-signed-commits/")
-	if info, ok := debug.ReadBuildInfo(); ok && strings.HasPrefix(info.Main.Version, "v") {
-		ua.WriteString(info.Main.Version[1:])
-	} else {
-		ua.WriteString("devel")
+	ua.WriteString("push-signed-commits")
+	if version != "none" {
+		ua.WriteByte('/')
+		if version != "" {
+			ua.WriteString(version)
+		} else {
+			if info, ok := debug.ReadBuildInfo(); ok && strings.HasPrefix(info.Main.Version, "v") {
+				ua.WriteString(info.Main.Version[1:])
+			} else {
+				ua.WriteString("devel")
+			}
+		}
 	}
 	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Path != "" {
 		ua.WriteString(" (")
+		ua.WriteString(runtime.Version())
+		ua.WriteString("; ")
 		ua.WriteString(runtime.GOOS)
 		ua.WriteString("/")
 		ua.WriteString(runtime.GOARCH)
