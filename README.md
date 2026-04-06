@@ -15,12 +15,12 @@ Create verified commits for bots or workflows via the GitHub API.
 
 ```yaml
 # with the github actions token
-- uses: pgaskin/push-signed-commits@v0.0.5
+- uses: pgaskin/push-signed-commits@v0.0.6
   with:
     commit-message: commit message
 
 # with a github app installation token
-- uses: pgaskin/push-signed-commits@v0.0.5
+- uses: pgaskin/push-signed-commits@v0.0.6
   with:
     path: other-repo
     repository: username/other-repo
@@ -32,10 +32,10 @@ Create verified commits for bots or workflows via the GitHub API.
 
 ```bash
 # with a github token
-GITHUB_TOKEN=... go run pgaskin/push-signed-commits@v0.0.5 -commit username/repo master 'commit message'
+GITHUB_TOKEN=... go run pgaskin/push-signed-commits@v0.0.6 -commit username/repo master 'commit message'
 
 # with a github app installation token
-APP_PRIVATE_KEY=... go run pgaskin/push-signed-commits@v0.0.5 -app 1234 -commit username/other-repo master 'commit message'
+APP_PRIVATE_KEY=... go run pgaskin/push-signed-commits@v0.0.6 -app 1234 -commit username/other-repo master 'commit message'
 ```
 
 ### Features
@@ -103,7 +103,7 @@ If an app installation token is created, it is automatically revoked before the 
 ##### GitHub Actions
 
 ```yaml
-- run: pgaskin/push-signed-commits@v0.0.5
+- run: pgaskin/push-signed-commits@v0.0.6
   with:
     # The local repository path relative to the current directory. If you change
     # this, you probably also want to change the 'repository' and 'branch'.
@@ -206,8 +206,8 @@ If an app installation token is created, it is automatically revoked before the 
 
 ```
 usage:
-  go run github.com/pgaskin/push-signed-commits@v0.0.5 [flags] username/repo target_branch rev|rev..rev
-  go run github.com/pgaskin/push-signed-commits@v0.0.5 [flags] -commit [-allow-empty] username/repo target_branch commit_message
+  go run github.com/pgaskin/push-signed-commits@v0.0.6 [flags] username/repo target_branch rev|rev..rev
+  go run github.com/pgaskin/push-signed-commits@v0.0.6 [flags] -commit [-allow-empty] username/repo target_branch commit_message
 
 flags:
   -C string
@@ -254,11 +254,11 @@ prints a message if not -q), then exits with status 0.
 
 ```bash
 export GITHUB_TOKEN=
-go run github.com/pgaskin/push-signed-commits@v0.0.5 -commit username/repo master $'commit message subject\n\ncommit message body'
+go run github.com/pgaskin/push-signed-commits@v0.0.6 -commit username/repo master $'commit message subject\n\ncommit message body'
 ```
 
 ```yaml
-- uses: pgaskin/push-signed-commits@v0.0.5
+- uses: pgaskin/push-signed-commits@v0.0.6
   with:
     commit-message: |
       commit message subject
@@ -270,17 +270,17 @@ go run github.com/pgaskin/push-signed-commits@v0.0.5 -commit username/repo maste
 
 ```bash
 export GITHUB_TOKEN=
-go run github.com/pgaskin/push-signed-commits@v0.0.5 username/repo 'HEAD@{u}..HEAD'
+go run github.com/pgaskin/push-signed-commits@v0.0.6 username/repo 'HEAD@{u}..HEAD'
 ```
 
 ```yaml
-- uses: pgaskin/push-signed-commits@v0.0.5
+- uses: pgaskin/push-signed-commits@v0.0.6
 ```
 
 ##### Create and push all commits on the current branch since the last pull, then fetch the created commits
 
 ```yaml
-- uses: pgaskin/push-signed-commits@v0.0.5
+- uses: pgaskin/push-signed-commits@v0.0.6
   id: push
 - run: git fetch @{u} && git reset --soft ${{ steps.push.outputs.commit-oid }}
   if: steps.push.outputs.commit-oid != ''
@@ -292,11 +292,11 @@ The app must have `contents:write` permission. The private key can be base64-enc
 
 ```bash
 export APP_PRIVATE_KEY=
-go run github.com/pgaskin/push-signed-commits@v0.0.5 -app 1234 username/other-repo 'HEAD@{u}..HEAD'
+go run github.com/pgaskin/push-signed-commits@v0.0.6 -app 1234 username/other-repo 'HEAD@{u}..HEAD'
 ```
 
 ```yaml
-- uses: pgaskin/push-signed-commits@v0.0.5
+- uses: pgaskin/push-signed-commits@v0.0.6
   with:
     path: other-repo
     repository: username/other-repo

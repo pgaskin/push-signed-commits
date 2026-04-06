@@ -57,4 +57,3 @@ This keeps our repo clean, simple, and secure, while ensuring broad platform sup
 > I might also consider doing a hybrid approach where I have pre-built binaries for a few platforms in releases, and the action downloads those and tests them, falling back to building it.
 
 *-- Patrick Gaskin, 2026-04-05*
-
