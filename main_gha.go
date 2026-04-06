@@ -136,7 +136,7 @@ func run() error {
 	}
 
 	status = func(format string, a ...any) {
-		fmt.Fprintf(os.Stderr, format+"\n", a...)
+		fmt.Fprintf(os.Stderr, "\x1b[0;32m"+format+"\x1b[0m\n", a...) // green
 	}
 
 	verbose = func(format string, a ...any) {
@@ -162,6 +162,28 @@ func run() error {
 		if localCommit != "" {
 			sourceCommitOIDs = append(sourceCommitOIDs, string(localCommit))
 			sourceCommitOID = string(localCommit)
+		}
+		var desc string
+		if localCommit != "" {
+			desc = "commit " + string(localCommit)
+		} else {
+			desc = "new commit"
+		}
+		status("would push %s (%d bytes)", desc, len(inputJSON))
+		for _, line := range strings.Split(input.Message.Headline, "\n") {
+			status("  > %s", line)
+		}
+		if input.Message.Body != "" {
+			status("  >")
+			for _, line := range strings.Split(input.Message.Body, "\n") {
+				status("  > %s", line)
+			}
+		}
+		for _, f := range input.FileChanges.Additions {
+			status("  + %s (%d bytes)", string(appendMaybeQuoteToASCII(nil, f.Path)), len(f.Contents))
+		}
+		for _, f := range input.FileChanges.Deletions {
+			status("  - %s", string(appendMaybeQuoteToASCII(nil, f.Path)))
 		}
 	}
 
