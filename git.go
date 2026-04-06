@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 const MinGitMajor, MinGitMinor = 2, 38 // the minimum git version for the options we use.
@@ -434,7 +435,9 @@ func fmtargs(args ...string) string {
 func appendMaybeQuoteToASCII(dst []byte, s string) []byte {
 	i := len(dst)
 	dst = strconv.AppendQuoteToASCII(dst, s)
-	if len(dst)-i > 2 && string(dst[i+1:len(dst)-1]) == s {
+	if len(dst)-i > 2 && !strings.ContainsFunc(s, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '.' && r != '_' && r != '-' && r != '/'
+	}) && string(dst[i+1:len(dst)-1]) == s {
 		dst = append(dst[:i], s...)
 	}
 	return dst

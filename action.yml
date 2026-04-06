@@ -14,75 +14,79 @@ inputs:
   path:
     description:
       The local repository path relative to the current directory. If you change
-      this, you probably also want to change the 'repository' and 'branch'.
+      this, you probably also want to change the `repository` and `branch`.
   repository:
     description:
       The target repository username/name if not the same as the workflow. This
       does not need to match the local repo upstream. If not on the same GitHub
-      server as the workflow, you need to override the GITHUB_API_URL and
-      GITHUB_GRAPHQL_URL environment variables.
-    default: ${{ github.repository }}
+      server as the workflow, you need to override the $GITHUB_API_URL and
+      $GITHUB_GRAPHQL_URL environment variables.
+    default: '${{ github.repository }}'
   branch:
     description:
       The target branch name if not the same as the workflow ref, optionally
-      including the 'refs/heads/' prefix. This does not need to match the local
+      including the `refs/heads/` prefix. This does not need to match the local
       repo branch. You cannot push to tags.
-    default: ${{ github.ref }}
+    default: '${{ github.ref }}'
   revision:
     description:
       The commit or commit range to push to the remote. If you want to push the
-      last local commit, use 'HEAD'. If the local branch has an upstream set,
-      you can use 'HEAD@{u}..HEAD' to push all commits added since the last
+      last local commit, use `HEAD`. If the local branch has an upstream set,
+      you can use `HEAD@{u}..HEAD` to push all commits added since the last
       pull. Note that force-pushes are not supported and will be rejected. See
       https://git-scm.com/docs/gitrevisions. If not set, a new commit will be
-      created from the staging area.
+      created from the staging area. If there is nothing to commit or push,
+      nothing will be done and the command will exit successfully.
   allow-empty:
     description:
       Whether to make a new commit from the staging area even if there's nothing
-      to commit. Only used if 'revision' is not set.
-    default: false
+      to commit. Only used if `revision` is not set.
+    default: 'false'
   commit-message:
     description:
       The commit message to use if creating a new commit from the staging area.
-    default: automatic commit
+  commit-message-file:
+    description:
+      The file to read the commit message from. Overrides `commit-message`.
   user-agent:
     description:
       Override the user agent used to make GitHub API requests.
   insecure-skip-verify:
     description:
       Do not validate SSL certificates when making GitHub API requests.
-    default: false
+    default: 'false'
   dry-run:
     description:
       Do not push commits, just print the mutations which would be made.
-    default: false
+    default: 'false'
   github-token:
     description:
       The token to use to make GitHub API requests.
-    default: ${{ github.token }}
+    default: '${{ github.token }}'
   github-api-url:
     description:
-      GitHub API URL. If not set, it will be set from GITHUB_API_URL to be the
+      GitHub API URL. If not set, it will be set from $GITHUB_API_URL to be the
       same as the one where the workflow is running from (e.g.,
       https://api.github.com or https://my-ghes-server.example.com/api/v3).
   github-graphql-url:
     description:
-      GitHub GraphQL API URL. If not set, it will be set from GITHUB_GRAPHQL_URL
-      to be the same as the one where the workflow is running from (e.g.,
-      https://api.github.com or https://my-ghes-server.example.com/api/graphql).
+      GitHub GraphQL API URL. If not set, it will be set from
+      $GITHUB_GRAPHQL_URL to be the same as the one where the workflow is
+      running from (e.g., https://api.github.com or
+      https://my-ghes-server.example.com/api/graphql).
   app-id:
     description:
       Authenticate as a GitHub App with the specified ID. The installation ID
-      will be detected based on 'repository'. Overrides 'github-token'. The app
+      will be detected based on `repository`. Overrides `github-token`. The app
       must have the 'contents:write' permission. If you already have an app
-      installation token, you can pass it via 'github-token' instead.
+      installation token, you can pass it via `github-token` instead.
   app-key:
     description:
       The private key to use if authenticating as a GitHub App. Can be
       base64-encoded or contain escaped ('\n') newlines.
   git-binary:
     description:
-      The git binary to use. If not sepecified, the one in the PATH is used.
+      The git binary to use. If not specified, the one in the PATH is used.
   go-binary:
     description:
       The go binary to use to run the action. If not specified, one is
