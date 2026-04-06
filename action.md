@@ -53,5 +53,8 @@ For versioning, I could add moving major version tags, but I think I'd rather as
 
 This keeps our repo clean, simple, and secure, while ensuring broad platform support.
 
+> [!note]
+> I might also consider doing a hybrid approach where I have pre-built binaries for a few platforms in releases, and the action downloads those and tests them, falling back to building it.
+
 *-- Patrick Gaskin, 2026-04-05*
 

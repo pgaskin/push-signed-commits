@@ -2,6 +2,13 @@
 
 Create verified commits for bots or workflows via the GitHub API.
 
+<!-- TODO: write more tests
+ - generate test repos with git fast-import
+ - unit tests for git stuff
+ - integration tests for change generation
+ - e2e tests on a test repo, also testing the cli interface and action inputs, and that the output trees and commit messages match
+-->
+
 ### Quick Start
 
 ##### GitHub Actions
