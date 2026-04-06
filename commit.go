@@ -52,7 +52,7 @@ type Options struct {
 	CommitAllowEmpty bool
 	CommitMessage    string
 
-	OnDryRunCommit         func(input CreateCommitOnBranchInput, inputJSON []byte)
+	OnDryRunCommit         func(localCommit OID, input CreateCommitOnBranchInput, inputJSON []byte)
 	OnPushedNewCommit      func(newCommit OID)
 	OnPushedExistingCommit func(localCommit, newCommit OID)
 }
@@ -172,7 +172,7 @@ func Run(repo, branch string, opt Options) error {
 
 		if opt.DryRun {
 			if opt.OnDryRunCommit != nil {
-				opt.OnDryRunCommit(input, inputJSON)
+				opt.OnDryRunCommit("", input, inputJSON)
 			}
 			return nil
 		}
@@ -267,7 +267,7 @@ func Run(repo, branch string, opt Options) error {
 
 			if opt.DryRun {
 				if opt.OnDryRunCommit != nil {
-					opt.OnDryRunCommit(input, inputJSON)
+					opt.OnDryRunCommit(commit, input, inputJSON)
 				}
 				prevNewCommit = OID(strings.Repeat("x", len(commit)))
 				continue
