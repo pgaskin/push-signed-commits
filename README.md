@@ -141,7 +141,6 @@ If an app installation token is created, it is automatically revoked before the 
     # The token to use to make GitHub API requests.
     github-token: ${{ github.token }}
 
-
     # GitHub API URL. If not set, it will be set from GITHUB_API_URL to be the
     # same as the one where the workflow is running from (e.g.,
     # https://api.github.com or https://my-ghes-server.example.com/api/v3).
