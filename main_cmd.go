@@ -16,7 +16,7 @@ func main() {
 	const (
 		envGitHubApiURL     = "GITHUB_API_URL"     // set by GitHub Actions
 		envGitHubGraphqlURL = "GITHUB_GRAPHQL_URL" // set by GitHub Actions
-		envGitHubToken      = "GITHUB_TOKEN"       // set by GitHub Actions, also the conventional env var name
+		envGitHubToken      = "GITHUB_TOKEN"       // conventional env var name
 	)
 
 	var (
@@ -148,7 +148,7 @@ func main() {
 		CommitAllowEmpty: *commitAllowEmpty,
 		CommitMessage:    flag.Arg(2),
 
-		OnDryRunCommit: func(input CreateCommitOnBranchInput, inputJSON []byte) {
+		OnDryRunCommit: func(localCommit OID, input CreateCommitOnBranchInput, inputJSON []byte) {
 			os.Stdout.Write(append(inputJSON, '\n'))
 		},
 		OnPushedNewCommit: func(newCommit OID) {

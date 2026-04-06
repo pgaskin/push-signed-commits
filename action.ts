@@ -68,7 +68,7 @@ async function build(module: string) {
   } catch (err) {
     throw new Error(`failed to build ${gomod.path} with ${go.root} (${go.version}): ${err}}`)
   }
-    console.log(`Built ${out}`)
+  console.log(`Built ${out}`)
   // TODO: cache?
 
   return {
@@ -164,11 +164,20 @@ async function findLatestGo() {
 }
 
 async function *goToolchains(): AsyncGenerator<GoEnv> {
+  const override = getInput('go-binary')
+  if (override) {
+    try {
+      yield goEnv(override)
+    } catch (err) {
+      console.warn(styleText('yellow', `Failed to get go toolchain info from overridden go-binary ${override}: ${err}`))
+    }
+    return
+  }
   try {
     yield goEnv()
   } catch (err) {
     if (typeof err !== 'object' || err == null || !('code' in err) || err.code !== 'ENOENT') {
-      console.warn(styleText('yellow', `Failed to get system go toolchain info from default go install: ${err}`))
+      console.warn(styleText('yellow', `Failed to get go toolchain info from default go install: ${err}`))
     }
   }
   yield* cachedGoVersions()
@@ -326,6 +335,17 @@ function ghaCommand(command: string, properties: {[key: string]: any}, message: 
     }
   }
   process.stdout.write(`::${command}${props}::${message.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}${os.EOL}`)
+}
+
+/**
+ * Get an action input.
+ *
+ * Based on logic in:
+ * - actions/core@v3.0.0/src/core.ts
+ */
+function getInput(name: string, trim: boolean = false): string {
+  const val: string = process.env[`INPUT_${name.replace(/ /g, '_').toUpperCase()}`] || ''
+  return trim ? val.trim() : val
 }
 
 /**
