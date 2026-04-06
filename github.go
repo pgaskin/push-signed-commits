@@ -218,7 +218,7 @@ var _ json.Unmarshaler = (*Base64String)(nil)
 func (b Base64String) MarshalJSON() ([]byte, error) {
 	dst := make([]byte, 0, base64.StdEncoding.EncodedLen(len(b))+2)
 	dst = append(dst, '"')
-	dst = base64AppendEncode(base64.RawURLEncoding, dst, b)
+	dst = base64AppendEncode(base64.StdEncoding, dst, b)
 	dst = append(dst, '"')
 	return dst, nil
 }
