@@ -7,12 +7,8 @@ on:
   pull_request:
   workflow_dispatch:
 
-defaults:
-  run:
-    shell: bash
-
 jobs:
-  cmd:
+  test:
     strategy:
       fail-fast: false
       matrix:
@@ -20,22 +16,16 @@ jobs:
           - ubuntu-latest
           - windows-latest
           - macos-latest
-        go:
-          - 1.21.x
-          - stable
-    name: standalone (${{ matrix.os }}, go ${{ matrix.go }})
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-node@v6
         with:
-          go-version: ${{ matrix.go }}
-      - run: go vet .
-      - run: mkdir cover && echo .cover >> .git/info/exclude
-      - run: go test -v -cover . -test.gocoverdir=cover
-      - run: go tool covdata textfmt -i=cover -o=cover/data
-      - run: go tool cover -func=cover/data
-  gha:
+          node-version-file: package.json
+      - run: npm ci
+      - run: npx tsc
+      - run: node --test
+  action:
     strategy:
       fail-fast: false
       matrix:
@@ -43,7 +33,6 @@ jobs:
           - ubuntu-latest
           - windows-latest
           - macos-latest
-    name: action (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -53,13 +42,3 @@ jobs:
         with:
           dry-run: true # don't actually push anything
           revision: HEAD^^^..HEAD # last 3 commits
-  gha-tsc:
-    name: action tsc
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: package.json
-      - run: npm ci
-      - run: npx tsc
