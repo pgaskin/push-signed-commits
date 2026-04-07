@@ -265,9 +265,9 @@ function parseTree(out: GitOutput): GitTreeEntry[] {
     if (sizeStr.done) {
       throw new GitParseError(json`Expected mode after tree entry name ${name}`)
     }
-    const size = parseInt(sizeStr.value, 10)
+    const size = sizeStr.value === '-' ? -1 : parseInt(sizeStr.value, 10)
     if (isNaN(size) || !Number.isInteger(size)) {
-      throw new GitParseError(json`Invalid size ${modeStr}`)
+      throw new GitParseError(json`Invalid size ${sizeStr}`)
     }
     const path = out.next()
     if (path.done) {
