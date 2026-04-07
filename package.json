@@ -6,6 +6,10 @@
   "engines": {
     "node": ">= 24"
   },
+  "scripts": {
+    "lint": "tsc",
+    "test": "node --test"
+  },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^25.5.2",
