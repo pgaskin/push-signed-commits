@@ -88,15 +88,22 @@ export async function version(git: string): Promise<string> {
   return match[1]
 }
 
-export async function checkVersion(git: string): Promise<boolean | undefined> {
+export async function checkVersion(git: string): Promise<{
+  version: string,
+  compatible: boolean | undefined,
+}> {
   const ver = await version(git)
   const match = /^(\d+)[.](\d+)[.](\d+)$/.exec(ver)
+  let compatible
   if (match) {
     const major = parseInt(match[1])
     const minor = parseInt(match[2])
-    return major > minGitMajor || (major == minGitMajor && minor >= minGitMinor)
+    compatible = major > minGitMajor || (major == minGitMajor && minor >= minGitMinor)
   }
-  return
+  return {
+    version: ver,
+    compatible,
+  }
 }
 
 export async function head(git: string): Promise<CommitOID> {
@@ -153,7 +160,7 @@ export type GitDiffEntry = {
   path: string,
 }
 
-export async function stagedDiff(git: string, tree: Treeish): Promise<GitDiffEntry[]> {
+export async function diffStaged(git: string, tree: Treeish): Promise<GitDiffEntry[]> {
   const out = await run(false, git,
     'diff-index',       // low-level tree diff
     '-z',               // null-terminated
@@ -163,10 +170,10 @@ export async function stagedDiff(git: string, tree: Treeish): Promise<GitDiffEnt
     '--end-of-options', // no more options
     tree,               // target
   )
-  return parseDiffTree(out)
+  return parseDiff(out)
 }
 
-export async function commitDiff(git: string, a: Treeish, b: Treeish): Promise<GitDiffEntry[]> {
+export async function diffTrees(git: string, a: Treeish, b: Treeish): Promise<GitDiffEntry[]> {
   const out = await run(false, git,
     'diff-tree',        // low-level tree diff
     '-z',               // null-terminated
@@ -175,10 +182,10 @@ export async function commitDiff(git: string, a: Treeish, b: Treeish): Promise<G
     '--end-of-options', // no more options
     a, b,               // trees
   )
-  return parseDiffTree(out)
+  return parseDiff(out)
 }
 
-async function parseDiffTree(out: GitOutput): Promise<GitDiffEntry[]> {
+async function parseDiff(out: GitOutput): Promise<GitDiffEntry[]> {
   const diff = []
   for (const status of out) {
     const path = out.next()
@@ -414,5 +421,3 @@ export const __test = {
 function json(strings: TemplateStringsArray, ...values: any[]) {
   return strings.reduce((acc, str, i) => acc + str + (i < values.length ? JSON.stringify(values[i]) : ''), '');
 }
-
-console.log(isSpaceASCII("\t\r\x0B \n"))
