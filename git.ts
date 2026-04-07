@@ -152,7 +152,14 @@ export async function message(git: string, commit: Committish): Promise<string> 
     '--end-of-options',                   // no more options
     commit,                               // commit
   )
-  return out.all()
+  let msg = out.all()
+  if (msg.length) {
+    if (!msg.endsWith('\n')) {
+      throw new GitParseError(json`Expected git show to append a newline to the raw commit message, but didn't find one: ${msg}`)
+    }
+    msg = msg.slice(0, -1)
+  }
+  return msg
 }
 
 export type GitDiffEntry = {
