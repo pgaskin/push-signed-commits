@@ -227,7 +227,7 @@ export async function listIndex(git: string, path: string): Promise<GitTreeEntry
     '--end-of-options',            // escape
     path,                          // path
   )
-  return parseTree(out)
+  return parseTree(out, false)
 }
 
 export async function listTree(git: string, tree: TreeishOID, path: string): Promise<GitTreeEntry[]> {
@@ -239,12 +239,12 @@ export async function listTree(git: string, tree: TreeishOID, path: string): Pro
     tree,                          // tree object
     path,                          // path
   )
-  return parseTree(out)
+  return parseTree(out, true)
 }
 
 const parseTreeFormat = `%(objecttype)%x00%(objectmode)%x00%(objectname)%x00%(objectsize)%x00%(path)`
 
-function parseTree(out: GitOutput): GitTreeEntry[] {
+function parseTree(out: GitOutput, quoted: boolean): GitTreeEntry[] {
   const ent = []
   for (const type of out) {
     parseType(type)
@@ -278,7 +278,10 @@ function parseTree(out: GitOutput): GitTreeEntry[] {
       mode: mode,
       name: name.value,
       size: size,
-      path: path.value,
+      // git ls-tree always quotes it with --format (quote_c_style in
+      // show_tree_fmt) even if core.quotePath is disabled and/or -z is
+      // specified (ls-files doesn't)
+      path: (quoted && path.value.includes('"')) ? unquote(path.value) : path.value,
     })
   }
   return ent
@@ -372,7 +375,7 @@ export function splitCommitMessage(message: string): {
   subject = trimBlankLinesEnd(subject)
   body = trimBlankLinesStart(body)
   body = trimBlankLinesEnd(body)
-  return {subject, body}
+  return { subject, body }
 }
 
 function trimBlankLinesStart(s: string): string {
@@ -419,10 +422,49 @@ function isSpaceASCII(s: string): boolean {
   return /^[ \t\n\v\f\r]*$/.test(s)
 }
 
+/** Unquote a double-quoted C string. */
+function unquote(str: string): string {
+  if (!str.startsWith('"') || !str.endsWith('"')) {
+    throw new GitParseError(json`Expected ${str} to be quoted by git, but it wasn't`)
+  }
+  str = str.slice(1, -1)
+  const bytes: number[] = []
+  for (let i = 0; i < str.length; ) {
+    if (str[i] !== '\\') {
+      bytes.push(str.charCodeAt(i++))
+    } else {
+      const e = str[i + 1]
+      if (e >= '0' && e <= '7') {
+        let j = i + 1
+        while (j < i + 4 && j < str.length && str[j] >= '0' && str[j] <= '7') j++
+        bytes.push(parseInt(str.slice(i + 1, j), 8))
+        i = j
+      } else {
+        switch (e) {
+          case '\\': bytes.push(0x5c); break
+          case '/':  bytes.push(0x2f); break
+          case '"':  bytes.push(0x22); break
+          case 'a':  bytes.push(0x07); break
+          case 'b':  bytes.push(0x08); break
+          case 'f':  bytes.push(0x0c); break
+          case 'n':  bytes.push(0x0a); break
+          case 'r':  bytes.push(0x0d); break
+          case 't':  bytes.push(0x09); break
+          case 'v':  bytes.push(0x0b); break
+          default:   bytes.push(e.charCodeAt(0)); break
+        }
+        i += 2
+      }
+    }
+  }
+  return Buffer.from(bytes).toString('utf-8')
+}
+
 export const __test = {
   trimBlankLinesStart,
   trimBlankLinesEnd,
   cutBlankLine,
+  unquote,
 }
 
 function json(strings: TemplateStringsArray, ...values: any[]) {

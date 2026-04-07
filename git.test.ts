@@ -1,5 +1,5 @@
 import { suite, describe, it, after } from 'node:test'
-import { equal, deepEqual, ok, rejects } from 'node:assert'
+import { equal, deepEqual, ok, rejects, throws } from 'node:assert'
 import * as git from './git.ts'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -149,6 +149,19 @@ suite('git', () => {
     test(['blank line at end', 'test\n\n', 'test\n', ''])
     test(['blank line with ascii whitespace', 'test\n \t\r\v \ntest', 'test\n', 'test'])
   })
+  describe('unquote', () => {
+    const test = (what: string, input: string, expected: string) => {
+      it(what, () => equal(git.__test.unquote(input), expected))
+    }
+    test('plain path', '"foo.txt"', 'foo.txt')
+    test('double quote in name', '"\\"quoted\\".txt"', '"quoted".txt')
+    test('backslash in name', '"back\\\\slash.txt"', 'back\\slash.txt')
+    test('backslash escape sequences', '"\\a\\b\\f\\n\\r\\t\\v"', '\x07\b\f\n\r\t\v')
+    test('octal escape', '"\\303\\251"', '\u00e9')
+    it('throws if not quoted', () => {
+      throws(() => git.__test.unquote('foo'), /GitParseError/)
+    })
+  })
 })
 
 repoSuite('git (repo)', fi => {
@@ -162,6 +175,7 @@ repoSuite('git (repo)', fi => {
   * merge:   merge of C2+C3
   * misc:    C1 -> (+script.sh exec, +subdir/deep.txt, +sub gitlink->TARGET)
   * utf16:   C2 -> iso-8859-1 encoded message
+  * special: C1 -> (+files with quotes and backslashes in names)
   */
   fi.commit('refs/heads/target', 999_999_999, 'anchor\n', [], [{ path: '.keep', content: '' }])
   const c1m = fi.commit('refs/heads/main', 1_000_000_000, 'initial\n', [], [{ path: 'README.md', content: 'hello\n' }])
@@ -174,6 +188,10 @@ repoSuite('git (repo)', fi => {
     { path: 'sub', gitlink: tg },
   ])
   fi.commit('refs/heads/utf16', 1_000_000_005, Buffer.from('caf\xe9\n', 'latin1'), [c2m], [], 'ISO-8859-1')
+  fi.commit('refs/heads/special', 1_000_000_006, 'special\n', [c1m], [
+    { path: '"quoted".txt', content: 'quoted\n' },
+    { path: 'back\\slash.txt', content: 'backslash\n' },
+  ])
 }, tr => {
   tr.git(['read-tree', 'refs/heads/main'])
   const tg = tr.revParse(git.peeledRev('refs/heads/target', 'commit'))
@@ -185,6 +203,7 @@ repoSuite('git (repo)', fi => {
   const t1 = tr.revParse(git.peeledRev('refs/heads/main~1', 'tree'))
   const t2 = tr.revParse(git.peeledRev('refs/heads/main', 'tree'))
   const tm = tr.revParse(git.peeledRev('refs/heads/misc', 'tree'))
+  const tsp = tr.revParse(git.peeledRev('refs/heads/special', 'tree'))
 
   describe('version', () => {
     it('returns a version string', async () => {
@@ -241,6 +260,11 @@ repoSuite('git (repo)', fi => {
         [{ status: 'A', path: 'foo.txt' }],
       )
     })
+    it('handles special characters in filenames', async () => {
+      const diff = await git.diffTrees('git', t1, tsp)
+      const paths = diff.map(e => e.path).sort()
+      deepEqual(paths, ['"quoted".txt', 'back\\slash.txt'])
+    })
   })
 
   describe('listTree', () => {
@@ -264,6 +288,14 @@ repoSuite('git (repo)', fi => {
       equal(e.type, 'commit')
       equal(e.mode, 160000)
       equal(e.name, tg)
+    })
+    it('double-quoted filename', async () => {
+      const [e] = await git.listTree('git', tsp, '"quoted".txt')
+      equal(e.path, '"quoted".txt')
+    })
+    it('backslash in filename', async () => {
+      const [e] = await git.listTree('git', tsp, 'back\\slash.txt')
+      equal(e.path, 'back\\slash.txt')
     })
   })
 
@@ -379,11 +411,12 @@ class FastImport {
       this.text(`merge :${p}\n`)
     }
     for (const f of files) {
+      const qp = /["\\]/.test(f.path) ? '"' + f.path.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"' : f.path // just enough c-style quoting for our tests
       if ('gitlink' in f) {
-        this.text(`M 160000 ${f.gitlink} ${f.path}\n`)
+        this.text(`M 160000 ${f.gitlink} ${qp}\n`)
       } else {
         const cb = Buffer.from(f.content, 'utf-8')
-        this.text(`M ${f.exec ? '100755' : '100644'} inline ${f.path}\n`)
+        this.text(`M ${f.exec ? '100755' : '100644'} inline ${qp}\n`)
         this.text(`data ${cb.byteLength}\n`)
         this.chunks.push(cb)
       }
