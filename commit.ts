@@ -1,4 +1,5 @@
 import * as git from './git.ts'
+import * as github from './github.ts'
 
 export class NotPushableError extends Error {
   public commit: git.CommitOID | undefined
@@ -12,7 +13,7 @@ export class NotPushableError extends Error {
   }
 }
 
-async function changes(repo: git.Repo, diff: git.GitDiffEntry[], commit?: git.CommitOID | undefined): Promise<github.FileChanges> {
+export async function changes(repo: git.Repo, diff: git.GitDiffEntry[], commit?: git.CommitOID | undefined): Promise<github.FileChanges> {
   const additions = []
   const deletions = []
   for (const file of diff) {

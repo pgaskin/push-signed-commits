@@ -11,7 +11,7 @@ globalThis.console = new Console({
 /**
  * Create an expandable group in the output for the current scope.
  */
-function ghaGroup(name: string): Disposable {
+export function ghaGroup(name: string): Disposable {
   ghaCommand('group', {}, name)
   return {
     [Symbol.dispose]() {
@@ -27,7 +27,7 @@ function ghaGroup(name: string): Disposable {
  * - actions/core@v3.0.0/src/command.ts
  * - https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
  */
-function ghaCommand(command: string, properties: {[key: string]: any}, message: string) {
+export function ghaCommand(command: string, properties: {[key: string]: any}, message: string) {
   let props = ''
   if (properties) {
     for (const [key, val] of Object.entries(properties)) {
@@ -50,7 +50,7 @@ function ghaCommand(command: string, properties: {[key: string]: any}, message: 
  * Based on logic in:
  * - actions/core@v3.0.0/src/core.ts
  */
-function getInput(name: string, trim: boolean = false): string {
+export function getInput(name: string, trim: boolean = false): string {
   const val: string = process.env[`INPUT_${name.replace(/ /g, '_').toUpperCase()}`] || ''
   return trim ? val.trim() : val
 }
@@ -61,7 +61,7 @@ function getInput(name: string, trim: boolean = false): string {
  * Based on logic in:
  * - actions/core@v3.0.0/src/core.ts
  */
-const DEBUG = process.env['RUNNER_DEBUG'] === '1'
+export const DEBUG = process.env['RUNNER_DEBUG'] === '1'
 
 /**
  * Whether the runner is self-hosted.
@@ -69,4 +69,4 @@ const DEBUG = process.env['RUNNER_DEBUG'] === '1'
  * Based on logic in:
  * - actions/setup-go@v6.4.0/src/utils.ts
  */
-const SELFHOSTED = process.env['RUNNER_ENVIRONMENT'] !== 'github-hosted' && (process.env['AGENT_ISSELFHOSTED'] === '1' || process.env['AGENT_ISSELFHOSTED'] === undefined)
+export const SELFHOSTED = process.env['RUNNER_ENVIRONMENT'] !== 'github-hosted' && (process.env['AGENT_ISSELFHOSTED'] === '1' || process.env['AGENT_ISSELFHOSTED'] === undefined)

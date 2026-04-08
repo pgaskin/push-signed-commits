@@ -1,9 +1,9 @@
 import { suite, describe, it, after } from 'node:test'
 import { equal, deepEqual, ok, rejects, throws } from 'node:assert'
 import * as git from './git.ts'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 suite('git', () => {
@@ -394,11 +394,11 @@ repoSuite('git (repo)', fi => {
     })
     it('resolves the absolute git dir path', async () => {
       const repo = await git.repo('git', tr.path)
-      equal(repo.gitDir, resolve(tr.gitDir))
+      equal(repo.gitDir, realpathSync(tr.gitDir))
     })
     it('works within a subdirectory', async () => {
       const repo = await git.repo('git', join(tr.path, 'emptydir'))
-      equal(repo.gitDir, resolve(tr.gitDir))
+      equal(repo.gitDir, realpathSync(tr.gitDir))
     })
     it('returns a wrapper around the repo functions', async () => {
       const repo = await git.repo('git', tr.path)
@@ -471,7 +471,7 @@ class TempRepo implements Disposable {
   readonly gitDir: string
 
   constructor(fi: FastImport) {
-    this.path = mkdtempSync(join(tmpdir(), 'git-test-'))
+    this.path = realpathSync(mkdtempSync(join(tmpdir(), 'git-test-')))
     this.gitDir = join(this.path, '.git')
     this.git(['init', '-q', '--initial-branch=main', '.'])
     this.git(['config', 'core.autocrlf', 'false'])
