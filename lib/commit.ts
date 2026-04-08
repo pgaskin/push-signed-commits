@@ -1,11 +1,13 @@
-import * as git from './git.ts'
-import * as github from './github.ts'
+import type { CommitOID, GitDiffEntry, Repo } from "./git.ts"
+import type { CreateCommitOnBranchInput, FileChanges } from "./github.ts"
+import { encodeBase64 } from "./github.ts"
+import { diffStatus, splitCommitMessage } from "./git.ts"
 
 export class NotPushableError extends Error {
-  public commit: git.CommitOID | undefined
+  public commit: CommitOID | undefined
   public path: string | undefined
 
-  constructor(commit: git.CommitOID | undefined, message: string, path?: string | undefined) {
+  constructor(commit: CommitOID | undefined, message: string, path?: string | undefined) {
     super(`${commit ? `Commit ${commit}` : `Staging area`} is not pushable: ${message}${path ? ` ${path}` : ''}`)
     this.name = 'NotPushableError'
     this.commit = commit
@@ -13,20 +15,80 @@ export class NotPushableError extends Error {
   }
 }
 
-export async function changes(repo: git.Repo, diff: git.GitDiffEntry[], commit?: git.CommitOID | undefined): Promise<github.FileChanges> {
+interface Commit {
+  local?: CommitOID,
+  input: Omit<CreateCommitOnBranchInput, 'branch'>,
+}
+
+export async function staged(repo: Repo, message: string): Promise<Commit> {
+  const parent = await repo.head()
+  const files = await repo.diffStaged(parent)
+
+  const {subject, body} = splitCommitMessage(message)
+  const {additions, deletions} = await changes(repo, files)
+
+  return {
+    input: {
+      message: {
+        headline: subject,
+        body: body,
+      },
+      fileChanges: {
+        additions,
+        deletions,
+      },
+      expectedHeadOid: parent,
+    },
+  }
+}
+
+export async function *commits(repo: Repo, revision: string): AsyncGenerator<Commit> {
+  for (const commit of await repo.commits(revision)) {
+    const parents = await repo.parents(commit)
+    switch (parents.length) {
+      case 0:
+        throw new NotPushableError(commit, `has no parents (creating a new branch is not supported)`)
+      case 1:
+        throw new NotPushableError(commit, `has multiple parents (merge commits are not supported)`)
+    }
+    const parent = parents[0]
+
+    const message = await repo.message(commit)
+    const {subject, body} = splitCommitMessage(message)
+
+    const files = await repo.diffTrees(parent, commit)
+    const {additions, deletions} = await changes(repo, files)
+
+    yield {
+      local: commit,
+      input: {
+        message: {
+          headline: subject,
+          body: body,
+        },
+        fileChanges: {
+          additions,
+          deletions,
+        },
+        expectedHeadOid: parent,
+      },
+    }
+  }
+}
+
+export async function changes(repo: Repo, diff: GitDiffEntry[], commit?: CommitOID | undefined): Promise<FileChanges> {
   const additions = []
   const deletions = []
   for (const file of diff) {
     switch (file.status) {
-      case git.diffStatus.added:
-      case git.diffStatus.modified:
-      case git.diffStatus.typeChanged:
+      case diffStatus.added:
+      case diffStatus.modified:
+      case diffStatus.typeChanged:
         const objs = commit
           ? await repo.listTree(commit, file.path)
           : await repo.listIndex(file.path)
         if (objs.length !== 1) {
-          // diff-tree / diff-files doesn't return trees when -r, so it should only ever have one
-          throw new git.GitParseError(`Get tree object ${file.path}: expected exactly one non-tree object, got ${JSON.stringify(objs)}`)
+          throw new Error(`Get tree object ${file.path}: expected exactly one non-tree object, got ${JSON.stringify(objs)}`)
         }
         const obj = objs[0]
         // git@v2.53.0/fsck.c:722-743
@@ -56,11 +118,11 @@ export async function changes(repo: git.Repo, diff: git.GitDiffEntry[], commit?:
         const buf = await repo.catFile(obj.name)
         additions.push({
           path: obj.path,
-          contents: github.encodeBase64(buf),
+          contents: encodeBase64(buf),
         })
         break
 
-      case git.diffStatus.deleted:
+      case diffStatus.deleted:
         deletions.push({
           path: file.path,
         })
