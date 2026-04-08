@@ -1,8 +1,8 @@
 import { suite, describe, it } from 'node:test'
-import { equal, deepEqual, ok, rejects, throws } from 'node:assert'
+import { equal, deepStrictEqual, ok, rejects, throws, strictEqual } from 'node:assert'
 import { realpathSync } from 'node:fs'
 import { join, normalize, isAbsolute } from 'node:path'
-import { repoSuite } from './git_test.ts'
+import { repoSuite, dummy } from './git_test.ts'
 import * as git from './git.ts'
 
 suite('git', () => {
@@ -164,11 +164,7 @@ suite('git', () => {
 })
 
 repoSuite('git (repo)', fi => {
-  // printf '%s\n' 'commit refs/heads/target' 'mark :1' 'committer T <t@t> 999999999 +0000' 'data 7' 'anchor' 'M 100644 inline .keep' 'data 0' '' '' | git fast-import --quiet && git rev-parse refs/heads/target && git update-ref -d refs/heads/target`
-  const tg = '8bb997792df216d2c6ffda748dfd6e43d6254dd1'
-
   /*
-  * target:     small orphan commit to test gitlinks
   * main:       C1 (README.md) -> C2 (+foo.txt)
   * feature:    C1 -> C3 (+bar.txt)
   * merge:      merge of C2+C3
@@ -177,29 +173,27 @@ repoSuite('git (repo)', fi => {
   * special:    C1 -> (+files with quotes and backslashes in names)
   * outoforder: four commits not in date order
   */
-  fi.commit('refs/heads/target', 999_999_999, 'anchor\n', [], [{ path: '.keep', content: '' }])
-  const c1m = fi.commit('refs/heads/main', 1_000_000_000, 'initial\n', [], [{ path: 'README.md', content: 'hello\n' }])
-  const c2m = fi.commit('refs/heads/main', 1_000_000_001, 'second\n', [c1m], [{ path: 'foo.txt', content: 'foo\n' }])
-  const c3m = fi.commit('refs/heads/feature', 1_000_000_002, 'feature\n', [c1m], [{ path: 'bar.txt', content: 'bar\n' }])
-  fi.commit('refs/heads/merge', 1_000_000_003, 'merge\n', [c2m, c3m], [])
-  fi.commit('refs/heads/misc', 1_000_000_004, 'misc\n', [c1m], [
+  const c1 = fi.commit('refs/heads/main', 1_000_000_000, 'initial\n', [], [{ path: 'README.md', content: 'hello\n' }])
+  const c2 = fi.commit('refs/heads/main', 1_000_000_001, 'second\n', [c1], [{ path: 'foo.txt', content: 'foo\n' }])
+  const c3 = fi.commit('refs/heads/feature', 1_000_000_002, 'feature\n', [c1], [{ path: 'bar.txt', content: 'bar\n' }])
+  fi.commit('refs/heads/merge', 1_000_000_003, 'merge\n', [c2, c3], [])
+  fi.commit('refs/heads/misc', 1_000_000_004, 'misc\n', [c1], [
     { path: 'script.sh', content: '#!/bin/sh\n', exec: true },
     { path: 'subdir/deep.txt', content: 'deep\n' },
-    { path: 'sub', gitlink: tg },
+    { path: 'sub', gitlink: dummy },
   ])
-  fi.commit('refs/heads/utf16', 1_000_000_005, Buffer.from('caf\xe9\n', 'latin1'), [c2m], [], 'ISO-8859-1')
+  fi.commit('refs/heads/utf16', 1_000_000_005, Buffer.from('caf\xe9\n', 'latin1'), [c2], [], 'ISO-8859-1')
   // outoforder: commits with timestamps that don't match topological order
   // ood-first (parent) has a higher timestamp than ood-second (child)
-  const o1m = fi.commit('refs/heads/outoforder', 1_000_000_010, 'first\n', [], [])
-  const o2m = fi.commit('refs/heads/outoforder', 999_999_998, 'second\n', [o1m], [])
-  const o3m = fi.commit('refs/heads/outoforder', 1_000_000_030, 'third\n', [o2m], [])
-  fi.commit('refs/heads/outoforder', 999_999_985, 'fourth\n', [o3m], [])
-  if (process.platform !== 'win32') fi.commit('refs/heads/special', 1_000_000_006, 'special\n', [c1m], [
+  const o1 = fi.commit('refs/heads/outoforder', 1_000_000_010, 'first\n', [], [])
+  const o2 = fi.commit('refs/heads/outoforder', 999_999_998, 'second\n', [o1], [])
+  const o3 = fi.commit('refs/heads/outoforder', 1_000_000_030, 'third\n', [o2], [])
+  fi.commit('refs/heads/outoforder', 999_999_985, 'fourth\n', [o3], [])
+  if (process.platform !== 'win32') fi.commit('refs/heads/special', 1_000_000_006, 'special\n', [c1], [
     { path: '"quoted".txt', content: 'quoted\n' },
     { path: 'back\\slash.txt', content: 'backslash\n' },
   ])
 }, tr => {
-  const tg = tr.revParse(git.peeledRev('refs/heads/target', 'commit'))
   const c1 = tr.revParse(git.peeledRev('refs/heads/main~1', 'commit'))
   const c2 = tr.revParse(git.peeledRev('refs/heads/main', 'commit'))
   const c3 = tr.revParse(git.peeledRev('refs/heads/feature', 'commit'))
@@ -209,10 +203,8 @@ repoSuite('git (repo)', fi => {
   const o2 = tr.revParse(git.peeledRev('refs/heads/outoforder~2', 'commit'))
   const o3 = tr.revParse(git.peeledRev('refs/heads/outoforder~1', 'commit'))
   const o4 = tr.revParse(git.peeledRev('refs/heads/outoforder', 'commit'))
-  const t1 = tr.revParse(git.peeledRev('refs/heads/main~1', 'tree'))
-  const t2 = tr.revParse(git.peeledRev('refs/heads/main', 'tree'))
-  const tm = tr.revParse(git.peeledRev('refs/heads/misc', 'tree'))
-  const sp = process.platform !== 'win32' ? tr.revParse(git.peeledRev('refs/heads/special', 'tree')) : ''
+  const m1 = tr.revParse(git.peeledRev('refs/heads/misc', 'commit'))
+  const sp = process.platform !== 'win32' ? tr.revParse(git.peeledRev('refs/heads/special', 'commit')) : undefined
 
   tr.mkdir('emptydir')
 
@@ -228,38 +220,38 @@ repoSuite('git (repo)', fi => {
 
   describe('head', () => {
     it('returns tip of main', async () => {
-      equal(await git.head('git', tr.path), c2)
+      strictEqual(await git.head('git', tr.path), c2)
     })
   })
 
   describe('commits', () => {
     it('single rev resolves to tip', async () => {
-      deepEqual(await git.commits('git', tr.path, 'refs/heads/main'), [c2])
+      deepStrictEqual(await git.commits('git', tr.path, 'refs/heads/main'), [c2])
     })
     it('empty range', async () => {
-      deepEqual(await git.commits('git', tr.path, `${c2}..${c2}`), [])
+      deepStrictEqual(await git.commits('git', tr.path, `${c2}..${c2}`), [])
     })
     it('range', async () => {
-      deepEqual(await git.commits('git', tr.path, `${c1}..${c2}`), [c2])
+      deepStrictEqual(await git.commits('git', tr.path, `${c1}..${c2}`), [c2])
     })
     it('ordered from parent to child', async () => {
-      deepEqual(await git.commits('git', tr.path, `${c1}..${c5}`), [c2, c5])
+      deepStrictEqual(await git.commits('git', tr.path, `${c1}..${c5}`), [c2, c5])
     })
     it('is in topological order', async () => {
-      deepEqual(await git.commits('git', tr.path, `${c1}..refs/heads/outoforder`), [o1, o2, o3, o4])
+      deepStrictEqual(await git.commits('git', tr.path, `${c1}..refs/heads/outoforder`), [o1, o2, o3, o4])
     })
   })
 
   describe('parents', () => {
     it('root commit has none', async () => {
-      deepEqual(await git.parents('git', tr.path, c1), [])
+      deepStrictEqual(await git.parents('git', tr.path, c1), [])
     })
     it('second commit has one parent', async () => {
-      deepEqual(await git.parents('git', tr.path, c2), [c1])
+      deepStrictEqual(await git.parents('git', tr.path, c2), [c1])
     })
     it('merge commit has two parents', async () => {
       const ps = await git.parents('git', tr.path, c4)
-      equal(ps.length, 2)
+      strictEqual(ps.length, 2)
       ok(ps.includes(c2))
       ok(ps.includes(c3))
     })
@@ -276,15 +268,15 @@ repoSuite('git (repo)', fi => {
 
   describe('diffTrees', () => {
     it('shows added file between t1 and t2', async () => {
-      deepEqual(
-        await git.diffTrees('git', tr.path, t1, t2),
+      deepStrictEqual(
+        await git.diffTrees('git', tr.path, c1, c2),
         [{ status: 'A', path: 'foo.txt' }],
       )
     })
     it('handles special characters in filenames', { skip: !sp }, async () => {
-      const diff = await git.diffTrees('git', tr.path, t1, sp as git.TreeOID)
+      const diff = await git.diffTrees('git', tr.path, c1, sp as git.CommitOID)
       const paths = diff.map(e => e.path).sort()
-      deepEqual(paths, [
+      deepStrictEqual(paths, [
         '"quoted".txt',
         'back\\slash.txt',
       ])
@@ -293,39 +285,39 @@ repoSuite('git (repo)', fi => {
 
   describe('listTree', () => {
     it('regular blob', async () => {
-      const [e] = await git.listTree('git', tr.path, t1, 'README.md')
-      equal(e.type, 'blob')
-      equal(e.mode, 0o100644)
+      const [e] = await git.listTree('git', tr.path, c1, 'README.md')
+      strictEqual(e.type, 'blob')
+      strictEqual(e.mode, 0o100644)
     })
     it('executable blob', async () => {
-      const [e] = await git.listTree('git', tr.path, tm, 'script.sh')
-      equal(e.type, 'blob')
-      equal(e.mode, 0o100755)
+      const [e] = await git.listTree('git', tr.path, m1, 'script.sh')
+      strictEqual(e.type, 'blob')
+      strictEqual(e.mode, 0o100755)
     })
     it('subdirectory tree', async () => {
-      const [e] = await git.listTree('git', tr.path, tm, 'subdir')
-      equal(e.type, 'tree')
-      equal(e.mode, 0o40000)
+      const [e] = await git.listTree('git', tr.path, m1, 'subdir')
+      strictEqual(e.type, 'tree')
+      strictEqual(e.mode, 0o40000)
     })
     it('gitlink', async () => {
-      const [e] = await git.listTree('git', tr.path, tm, 'sub')
-      equal(e.type, 'commit')
-      equal(e.mode, 0o160000)
-      equal(e.name, tg)
+      const [e] = await git.listTree('git', tr.path, m1, 'sub')
+      strictEqual(e.type, 'commit')
+      strictEqual(e.mode, 0o160000)
+      strictEqual(e.name, dummy)
     })
     it('double-quoted filename', { skip: !sp }, async () => {
-      const [e] = await git.listTree('git', tr.path, sp as git.TreeOID, '"quoted".txt')
+      const [e] = await git.listTree('git', tr.path, sp as git.CommitOID, '"quoted".txt')
       equal(e.path, '"quoted".txt')
     })
     it('backslash in filename', { skip: !sp }, async () => {
-      const [e] = await git.listTree('git', tr.path, sp as git.TreeOID, 'back\\slash.txt')
+      const [e] = await git.listTree('git', tr.path, sp as git.CommitOID, 'back\\slash.txt')
       equal(e.path, 'back\\slash.txt')
     })
   })
 
   describe('catFile', () => {
     it('returns blob contents', async () => {
-      const [entry] = await git.listTree('git', tr.path, t1, 'README.md')
+      const [entry] = await git.listTree('git', tr.path, c1, 'README.md')
       equal((await git.catFile('git', tr.path, entry.name)).toString(), 'hello\n')
     })
     it('returns staged content, not working tree', async () => {
@@ -339,23 +331,23 @@ repoSuite('git (repo)', fi => {
         ok(!content.includes('modified'))
       } finally {
         tr.reset('partial.txt')
-        tr.removeFile('partial.txt')
+        tr.rm('partial.txt')
       }
     })
   })
 
   describe('diffStaged', () => {
     it('empty after read-tree HEAD', async () => {
-      deepEqual(await git.diffStaged('git', tr.path, 'HEAD'), [])
+      deepStrictEqual(await git.diffStaged('git', tr.path, 'HEAD'), [])
     })
     it('shows staged add', async () => {
       tr.writeFile('staged.txt', 'staged\n')
       tr.add('staged.txt')
       try {
-        deepEqual(await git.diffStaged('git', tr.path, 'HEAD'), [{ status: 'A', path: 'staged.txt' }])
+        deepStrictEqual(await git.diffStaged('git', tr.path, 'HEAD'), [{ status: 'A', path: 'staged.txt' }])
       } finally {
         tr.reset('staged.txt')
-        tr.removeFile('staged.txt')
+        tr.rm('staged.txt')
       }
     })
   })
@@ -363,7 +355,7 @@ repoSuite('git (repo)', fi => {
   describe('listIndex', () => {
     it('returns staged files', async () => {
       const paths = (await git.listIndex('git', tr.path, '.')).map(e => e.path).sort()
-      deepEqual(paths, ['README.md', 'foo.txt'])
+      deepStrictEqual(paths, ['README.md', 'foo.txt'])
     })
   })
 
@@ -371,8 +363,9 @@ repoSuite('git (repo)', fi => {
     async function assertGitError(p: Promise<unknown>): Promise<void> {
       await rejects(p, (e: unknown) => {
         ok(e instanceof Error, 'expected Error')
-        ok(e.message.includes('exit status'), `expected "exit status" in: ${e.message}`)
+        ok(!(e instanceof git.GitParseError))
         ok(!e.message.includes('GitParseError'), `unexpected "GitParseError" in: ${e.message}`)
+        ok(e.message.includes('exit status'), `expected "exit status" in: ${e.message}`)
         return true
       })
     }
@@ -440,6 +433,6 @@ function pathEqual(a: string, b: string, message?: string | Error): void {
   // git on windows may return forward slash paths
   // node on windows may return 8.3 filenames
   a = realpathSync.native(normalize(a))
-  b = realpathSync.native(normalize(b)) 
+  b = realpathSync.native(normalize(b))
   equal(a, b, message)
 }

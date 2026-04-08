@@ -9,9 +9,16 @@ export type FastImportFile =
   | { path: string, content: string, exec?: boolean }
   | { path: string, gitlink: string }
 
+// printf '%s\n' 'commit refs/test/dummy' 'mark :1' 'committer T <t@t> 999999999 +0000' 'data 7' 'dummy' '' | git fast-import --quiet && git rev-parse refs/test/dummy && git update-ref -d refs/test/dummy`
+export const dummy = 'b7a2e2769a0479f89efa4c42b1eef1a5ca8dedb3' // for testing gitlinks
+
 export class FastImport {
   private chunks: Buffer[] = []
   private mark = 1
+
+  constructor() {
+    this.commit('refs/test/dummy', 999_999_999, 'dummy\n', [], [])
+  }
 
   private text(s: string): void {
     this.chunks.push(Buffer.from(s, 'utf-8'))
@@ -83,12 +90,16 @@ export class TempRepo implements Disposable {
     mkdirSync(full)
   }
 
-  removeFile(path: string): void {
+  rm(path: string): void {
     rmSync(join(this.path, path))
   }
 
   add(...paths: string[]): void {
     this.git(['add', '--', ...paths])
+  }
+
+  rmCached(...paths: string[]): void {
+    this.git(['rm', '--cached', '--', ...paths])
   }
 
   reset(...paths: string[]): void {

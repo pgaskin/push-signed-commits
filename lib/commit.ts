@@ -16,16 +16,16 @@ export class NotPushableError extends Error {
 }
 
 interface Commit {
-  local?: CommitOID,
   input: Omit<CreateCommitOnBranchInput, 'branch'>,
+  local: CommitOID | null,
 }
 
 export async function staged(repo: Repo, message: string): Promise<Commit> {
   const parent = await repo.head()
   const files = await repo.diffStaged(parent)
 
-  const {subject, body} = splitCommitMessage(message)
-  const {additions, deletions} = await changes(repo, files)
+  const { subject, body } = splitCommitMessage(message)
+  const { additions, deletions } = await changes(repo, files)
 
   return {
     input: {
@@ -39,28 +39,30 @@ export async function staged(repo: Repo, message: string): Promise<Commit> {
       },
       expectedHeadOid: parent,
     },
+    local: null,
   }
 }
 
-export async function *commits(repo: Repo, revision: string): AsyncGenerator<Commit> {
+export async function* commits(repo: Repo, revision: string): AsyncGenerator<Commit> {
   for (const commit of await repo.commits(revision)) {
     const parents = await repo.parents(commit)
     switch (parents.length) {
       case 0:
         throw new NotPushableError(commit, `has no parents (creating a new branch is not supported)`)
       case 1:
+        break
+      default:
         throw new NotPushableError(commit, `has multiple parents (merge commits are not supported)`)
     }
     const parent = parents[0]
 
     const message = await repo.message(commit)
-    const {subject, body} = splitCommitMessage(message)
+    const { subject, body } = splitCommitMessage(message)
 
     const files = await repo.diffTrees(parent, commit)
-    const {additions, deletions} = await changes(repo, files)
+    const { additions, deletions } = await changes(repo, files)
 
     yield {
-      local: commit,
       input: {
         message: {
           headline: subject,
@@ -72,6 +74,7 @@ export async function *commits(repo: Repo, revision: string): AsyncGenerator<Com
         },
         expectedHeadOid: parent,
       },
+      local: commit,
     }
   }
 }
@@ -132,5 +135,5 @@ export async function changes(repo: Repo, diff: GitDiffEntry[], commit?: CommitO
         throw new NotPushableError(commit, `unsupported diff status ${file.status} for entry`, file.path)
     }
   }
-  return {additions, deletions}
+  return { additions, deletions }
 }
