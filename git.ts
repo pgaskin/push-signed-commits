@@ -400,7 +400,7 @@ function parseType(type: string, path?: string | undefined): asserts type is Git
 }
 
 function parseOID<T extends OID>(oid: string): asserts oid is T {
-  if (!/^[a-f0-9]+$/.test(oid)) {
+  if (!isLowerHex(oid)) {
     throw new GitParseError(json`Invalid OID ${oid}`)
   }
   if (oid.length != 40 && oid.length != 64) {
@@ -466,7 +466,29 @@ function cutBlankLine(s: string): [string, string] {
 }
 
 function isSpaceASCII(s: string): boolean {
-  return /^[ \t\n\v\f\r]*$/.test(s)
+  for (let i = 0; i < s.length; i++) {
+    switch (s[i]) {
+      case '\t':
+      case '\n':
+      case '\v':
+      case '\f':
+      case '\r':
+      case ' ':
+        continue
+    }
+    return false
+  }
+  return true
+}
+
+function isLowerHex(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i)
+    if (!((c >= 48 && c <= 57) || (c >= 97 && c <= 102))) {
+      return false
+    }
+  }
+  return true
 }
 
 /** Unquote a double-quoted C string. */
