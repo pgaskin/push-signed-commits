@@ -290,7 +290,7 @@ function parseTree(out: GitOutput, quoted: boolean): GitTreeEntry[] {
     if (modeStr.done) {
       throw new GitParseError(json`Expected mode after tree entry type ${type}`)
     }
-    const mode = parseInt(modeStr.value, 10)
+    const mode = parseInt(modeStr.value, 8)
     if (isNaN(mode) || !Number.isInteger(mode)) {
       throw new GitParseError(json`Invalid mode ${modeStr}`)
     }

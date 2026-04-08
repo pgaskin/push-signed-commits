@@ -275,22 +275,22 @@ repoSuite('git (repo)', fi => {
     it('regular blob', async () => {
       const [e] = await git.listTree('git', tr.path, t1, 'README.md')
       equal(e.type, 'blob')
-      equal(e.mode, 100644)
+      equal(e.mode, 0o100644)
     })
     it('executable blob', async () => {
       const [e] = await git.listTree('git', tr.path, tm, 'script.sh')
       equal(e.type, 'blob')
-      equal(e.mode, 100755)
+      equal(e.mode, 0o100755)
     })
     it('subdirectory tree', async () => {
       const [e] = await git.listTree('git', tr.path, tm, 'subdir')
       equal(e.type, 'tree')
-      equal(e.mode, 40000)
+      equal(e.mode, 0o40000)
     })
     it('gitlink', async () => {
       const [e] = await git.listTree('git', tr.path, tm, 'sub')
       equal(e.type, 'commit')
-      equal(e.mode, 160000)
+      equal(e.mode, 0o160000)
       equal(e.name, tg)
     })
     it('double-quoted filename', { skip: !sp }, async () => {
