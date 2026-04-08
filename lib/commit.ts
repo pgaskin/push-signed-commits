@@ -90,12 +90,14 @@ export async function changes(repo: Repo, diff: GitDiffEntry[], commit?: CommitO
         const objs = commit
           ? await repo.listTree(commit, file.path)
           : await repo.listIndex(file.path)
+        /* node:coverage ignore next 3 */
         if (objs.length !== 1) {
           throw new Error(`Get tree object ${file.path}: expected exactly one non-tree object, got ${JSON.stringify(objs)}`)
         }
         const obj = objs[0]
         // git@v2.53.0/fsck.c:722-743
         switch (obj.mode) {
+          /* node:coverage ignore next 2 */
           case 0o040000: // tree (directory)
             throw new Error(`WTF: Why did a recursive ls-tree/ls-files return a directory`)
           case 0o100644: // regular file
@@ -107,9 +109,11 @@ export async function changes(repo: Repo, diff: GitDiffEntry[], commit?: CommitO
             throw new NotPushableError(commit, `contains a symbolic link`, file.path)
           case 0o160000: // gitlink (submodule)
             throw new NotPushableError(commit, `contains a submodule`, file.path)
+          /* node:coverage ignore next 2 */ // all known git objects covered
           default:
             throw new NotPushableError(commit, `contains a non-regular (mode ${obj.mode}) file`, file.path)
         }
+        /* node:coverage ignore next 8 */ // the above switch implies these cases for valid repos
         switch (obj.type) {
           case 'blob':
             break // okay

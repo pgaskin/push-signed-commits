@@ -24,7 +24,7 @@ jobs:
           node-version-file: package.json
       - run: npm ci
       - run: npx tsc
-      - run: node --test
+      - run: node --test --experimental-test-coverage
   action:
     strategy:
       fail-fast: false
