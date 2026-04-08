@@ -1,5 +1,4 @@
-import os from 'node:os'
-
+import { EOL } from 'node:os'
 import { Console } from 'node:console'
 
 globalThis.console = new Console({
@@ -41,7 +40,7 @@ export function ghaCommand(command: string, properties: {[key: string]: any}, me
       }
     }
   }
-  process.stdout.write(`::${command}${props}::${message.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}${os.EOL}`)
+  process.stdout.write(`::${command}${props}::${message.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}${EOL}`)
 }
 
 /**

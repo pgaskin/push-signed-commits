@@ -45,6 +45,9 @@ inputs:
     description:
       The commit message to use if creating a new commit from the staging area.
     default: automatic commit
+  commit-message-file:
+    description:
+      The file to read the commit message from. Overrides commit-message.
   user-agent:
     description:
       Override the user agent used to make GitHub API requests.
@@ -83,10 +86,6 @@ inputs:
   git-binary:
     description:
       The git binary to use. If not sepecified, the one in the PATH is used.
-  go-binary:
-    description:
-      The go binary to use to run the action. If not specified, one is
-      automatically selected from the PATH and the runner tool cache.
 
 outputs:
   not-pushable:
