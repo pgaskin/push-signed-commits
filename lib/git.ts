@@ -165,7 +165,9 @@ export async function commits(git: string, repo: string, revision: string): Prom
     'rev-list',         // verify revs, list commits between them, and resolve them to their commit hash
     '-z',               // null-terminated output
     '--no-walk',        // if a single rev is specified, only resolve that one; ignored if a range is specified
-    '--first-parent',   // only follow the first parent of merge commits (we'll filter those out later anyways)
+    '--topo-order',     // order by the commit graph, not the date
+    '--reverse',        // starting from the parent
+    '--first-parent',   // but only follow the first parent of merge commits (we'll filter those out later anyways)
     '--end-of-options', // prevent rev from being parsed as an option
     revision,           // rev
     '--',               // prevent rev from being parsed as a path

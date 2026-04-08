@@ -168,13 +168,14 @@ repoSuite('git (repo)', fi => {
   const tg = '8bb997792df216d2c6ffda748dfd6e43d6254dd1'
 
   /*
-  * target:  small orphan commit to test gitlinks
-  * main:    C1 (README.md) -> C2 (+foo.txt)
-  * feature: C1 -> C3 (+bar.txt)
-  * merge:   merge of C2+C3
-  * misc:    C1 -> (+script.sh exec, +subdir/deep.txt, +sub gitlink->TARGET)
-  * utf16:   C2 -> iso-8859-1 encoded message
-  * special: C1 -> (+files with quotes and backslashes in names)
+  * target:     small orphan commit to test gitlinks
+  * main:       C1 (README.md) -> C2 (+foo.txt)
+  * feature:    C1 -> C3 (+bar.txt)
+  * merge:      merge of C2+C3
+  * misc:       C1 -> (+script.sh exec, +subdir/deep.txt, +sub gitlink->TARGET)
+  * utf16:      C2 -> iso-8859-1 encoded message
+  * special:    C1 -> (+files with quotes and backslashes in names)
+  * outoforder: four commits not in date order
   */
   fi.commit('refs/heads/target', 999_999_999, 'anchor\n', [], [{ path: '.keep', content: '' }])
   const c1m = fi.commit('refs/heads/main', 1_000_000_000, 'initial\n', [], [{ path: 'README.md', content: 'hello\n' }])
@@ -187,6 +188,12 @@ repoSuite('git (repo)', fi => {
     { path: 'sub', gitlink: tg },
   ])
   fi.commit('refs/heads/utf16', 1_000_000_005, Buffer.from('caf\xe9\n', 'latin1'), [c2m], [], 'ISO-8859-1')
+  // outoforder: commits with timestamps that don't match topological order
+  // ood-first (parent) has a higher timestamp than ood-second (child)
+  const o1m = fi.commit('refs/heads/outoforder', 1_000_000_010, 'first\n', [], [])
+  const o2m = fi.commit('refs/heads/outoforder', 999_999_998, 'second\n', [o1m], [])
+  const o3m = fi.commit('refs/heads/outoforder', 1_000_000_030, 'third\n', [o2m], [])
+  fi.commit('refs/heads/outoforder', 999_999_985, 'fourth\n', [o3m], [])
   if (process.platform !== 'win32') fi.commit('refs/heads/special', 1_000_000_006, 'special\n', [c1m], [
     { path: '"quoted".txt', content: 'quoted\n' },
     { path: 'back\\slash.txt', content: 'backslash\n' },
@@ -198,6 +205,10 @@ repoSuite('git (repo)', fi => {
   const c3 = tr.revParse(git.peeledRev('refs/heads/feature', 'commit'))
   const c4 = tr.revParse(git.peeledRev('refs/heads/merge', 'commit'))
   const c5 = tr.revParse(git.peeledRev('refs/heads/utf16', 'commit'))
+  const o1 = tr.revParse(git.peeledRev('refs/heads/outoforder~3', 'commit'))
+  const o2 = tr.revParse(git.peeledRev('refs/heads/outoforder~2', 'commit'))
+  const o3 = tr.revParse(git.peeledRev('refs/heads/outoforder~1', 'commit'))
+  const o4 = tr.revParse(git.peeledRev('refs/heads/outoforder', 'commit'))
   const t1 = tr.revParse(git.peeledRev('refs/heads/main~1', 'tree'))
   const t2 = tr.revParse(git.peeledRev('refs/heads/main', 'tree'))
   const tm = tr.revParse(git.peeledRev('refs/heads/misc', 'tree'))
@@ -225,8 +236,17 @@ repoSuite('git (repo)', fi => {
     it('single rev resolves to tip', async () => {
       deepEqual(await git.commits('git', tr.path, 'refs/heads/main'), [c2])
     })
+    it('empty range', async () => {
+      deepEqual(await git.commits('git', tr.path, `${c2}..${c2}`), [])
+    })
     it('range', async () => {
       deepEqual(await git.commits('git', tr.path, `${c1}..${c2}`), [c2])
+    })
+    it('ordered from parent to child', async () => {
+      deepEqual(await git.commits('git', tr.path, `${c1}..${c5}`), [c2, c5])
+    })
+    it('is in topological order', async () => {
+      deepEqual(await git.commits('git', tr.path, `${c1}..refs/heads/outoforder`), [o1, o2, o3, o4])
     })
   })
 
