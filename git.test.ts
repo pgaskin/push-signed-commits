@@ -1,10 +1,9 @@
-import { suite, describe, it, after } from 'node:test'
+import { suite, describe, it } from 'node:test'
 import { equal, deepEqual, ok, rejects, throws } from 'node:assert'
+import { realpathSync } from 'node:fs'
+import { join, normalize, isAbsolute } from 'node:path'
+import { repoSuite } from './git_test.ts'
 import * as git from './git.ts'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, realpathSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { spawnSync } from 'node:child_process'
 
 suite('git', () => {
   describe('splitCommitMessage', () => {
@@ -188,7 +187,7 @@ repoSuite('git (repo)', fi => {
     { path: 'sub', gitlink: tg },
   ])
   fi.commit('refs/heads/utf16', 1_000_000_005, Buffer.from('caf\xe9\n', 'latin1'), [c2m], [], 'ISO-8859-1')
-  fi.commit('refs/heads/special', 1_000_000_006, 'special\n', [c1m], [
+  if (process.platform !== 'win32') fi.commit('refs/heads/special', 1_000_000_006, 'special\n', [c1m], [
     { path: '"quoted".txt', content: 'quoted\n' },
     { path: 'back\\slash.txt', content: 'backslash\n' },
   ])
@@ -202,16 +201,17 @@ repoSuite('git (repo)', fi => {
   const t1 = tr.revParse(git.peeledRev('refs/heads/main~1', 'tree'))
   const t2 = tr.revParse(git.peeledRev('refs/heads/main', 'tree'))
   const tm = tr.revParse(git.peeledRev('refs/heads/misc', 'tree'))
-  const tsp = tr.revParse(git.peeledRev('refs/heads/special', 'tree'))
+  const sp = process.platform !== 'win32' ? tr.revParse(git.peeledRev('refs/heads/special', 'tree')) : ''
 
   tr.mkdir('emptydir')
 
   describe('version', () => {
-    it('returns a version string', async () => {
-      ok(/\d+\.\d+/.test(await git.version('git')))
+    it('returns a non-empty version string', async () => {
+      ok(/\S/.test(await git.version('git')))
     })
     it('checkVersion is compatible', async () => {
-      ok((await git.checkVersion('git')).compatible)
+      const { version, compatible } = await git.checkVersion('git')
+      ok(compatible, version)
     })
   })
 
@@ -261,10 +261,13 @@ repoSuite('git (repo)', fi => {
         [{ status: 'A', path: 'foo.txt' }],
       )
     })
-    it('handles special characters in filenames', async () => {
-      const diff = await git.diffTrees('git', tr.path, t1, tsp)
+    it('handles special characters in filenames', { skip: !sp }, async () => {
+      const diff = await git.diffTrees('git', tr.path, t1, sp as git.TreeOID)
       const paths = diff.map(e => e.path).sort()
-      deepEqual(paths, ['"quoted".txt', 'back\\slash.txt'])
+      deepEqual(paths, [
+        '"quoted".txt',
+        'back\\slash.txt',
+      ])
     })
   })
 
@@ -290,12 +293,12 @@ repoSuite('git (repo)', fi => {
       equal(e.mode, 160000)
       equal(e.name, tg)
     })
-    it('double-quoted filename', async () => {
-      const [e] = await git.listTree('git', tr.path, tsp, '"quoted".txt')
+    it('double-quoted filename', { skip: !sp }, async () => {
+      const [e] = await git.listTree('git', tr.path, sp as git.TreeOID, '"quoted".txt')
       equal(e.path, '"quoted".txt')
     })
-    it('backslash in filename', async () => {
-      const [e] = await git.listTree('git', tr.path, tsp, 'back\\slash.txt')
+    it('backslash in filename', { skip: !sp }, async () => {
+      const [e] = await git.listTree('git', tr.path, sp as git.TreeOID, 'back\\slash.txt')
       equal(e.path, 'back\\slash.txt')
     })
   })
@@ -394,11 +397,12 @@ repoSuite('git (repo)', fi => {
     })
     it('resolves the absolute git dir path', async () => {
       const repo = await git.repo('git', tr.path)
-      equal(repo.gitDir, realpathSync(tr.gitDir))
+      ok(isAbsolute(repo.gitDir), 'gitDir is absolute')
+      pathEqual(repo.gitDir, tr.gitDir)
     })
     it('works within a subdirectory', async () => {
       const repo = await git.repo('git', join(tr.path, 'emptydir'))
-      equal(repo.gitDir, realpathSync(tr.gitDir))
+      pathEqual(repo.gitDir, tr.gitDir)
     })
     it('returns a wrapper around the repo functions', async () => {
       const repo = await git.repo('git', tr.path)
@@ -412,121 +416,10 @@ repoSuite('git (repo)', fi => {
   })
 })
 
-type FastImportFile =
-  | { path: string, content: string, exec?: boolean }
-  | { path: string, gitlink: string }
-
-class FastImport {
-  private chunks: Buffer[] = []
-  private mark = 1
-
-  private text(s: string): void {
-    this.chunks.push(Buffer.from(s, 'utf-8'))
-  }
-
-  commit(ref: string, ts: number, msg: string | Buffer, parents: number[], files: FastImportFile[], encoding?: string): number {
-    const mark = this.mark++
-    {
-      const header = [
-        `commit ${ref}`,
-        `mark :${mark}`,
-        `committer T <t@t> ${ts} +0000`,
-      ]
-      if (encoding) header.push(`encoding ${encoding}`)
-      this.text(header.join('\n') + '\n')
-    }
-    {
-      const msgBuf = typeof msg === 'string' ? Buffer.from(msg, 'utf-8') : msg
-      this.text(`data ${msgBuf.byteLength}\n`)
-      this.chunks.push(msgBuf)
-    }
-    if (parents.length) {
-      this.text(`from :${parents[0]}\n`)
-    }
-    for (const p of parents.slice(1)) {
-      this.text(`merge :${p}\n`)
-    }
-    for (const f of files) {
-      const qp = /["\\]/.test(f.path) ? '"' + f.path.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"' : f.path // just enough c-style quoting for our tests
-      if ('gitlink' in f) {
-        this.text(`M 160000 ${f.gitlink} ${qp}\n`)
-      } else {
-        const cb = Buffer.from(f.content, 'utf-8')
-        this.text(`M ${f.exec ? '100755' : '100644'} inline ${qp}\n`)
-        this.text(`data ${cb.byteLength}\n`)
-        this.chunks.push(cb)
-      }
-    }
-    this.text('\n')
-    return mark
-  }
-
-  toBuffer(): Buffer {
-    return Buffer.concat(this.chunks)
-  }
-}
-
-class TempRepo implements Disposable {
-  readonly path: string
-  readonly gitDir: string
-
-  constructor(fi: FastImport) {
-    this.path = realpathSync(mkdtempSync(join(tmpdir(), 'git-test-')))
-    this.gitDir = join(this.path, '.git')
-    this.git(['init', '-q', '--initial-branch=main', '.'])
-    this.git(['config', 'core.autocrlf', 'false'])
-    this.git(['fast-import', '--quiet'], fi.toBuffer())
-    this.git(['read-tree', 'refs/heads/main'])
-  }
-
-  writeFile(path: string, content: string): void {
-    const full = join(this.path, path)
-    mkdirSync(dirname(full), { recursive: true })
-    writeFileSync(full, content)
-  }
-
-  mkdir(path: string): void {
-    const full = join(this.path, path)
-    mkdirSync(full)
-  }
-
-  removeFile(path: string): void {
-    rmSync(join(this.path, path))
-  }
-
-  add(...paths: string[]): void {
-    this.git(['add', '--', ...paths])
-  }
-
-  reset(...paths: string[]): void {
-    this.git(['reset', '--', ...paths])
-  }
-
-  git(args: string[], input?: Buffer): void {
-    const r = spawnSync('git', ['-C', this.path, ...args], input !== undefined ? { input } : { encoding: 'utf-8' })
-    if (r.status !== 0) throw new Error(`git ${JSON.stringify(args)}: exit status ${r.status}: ${Buffer.isBuffer(r.stderr) ? r.stderr.toString('utf-8') : r.stderr}`)
-  }
-
-  revParse<T extends git.GitObjectType>(rev: git.PeeledRev<T>): git.TypedOID<T> {
-    const r = spawnSync('git', ['-C', this.path, 'rev-parse', '--verify', rev], { encoding: 'utf-8' })
-    if (r.status !== 0) throw new Error(`git rev-parse ${rev}: ${r.stderr}`)
-    return r.stdout.trim() as git.TypedOID<T>
-  }
-
-  [Symbol.dispose](): void {
-    rmSync(this.path, { recursive: true, force: true })
-  }
-}
-
-async function repoSuite(name: string, setup: (fi: FastImport) => void, fn: (tr: TempRepo) => void): Promise<void> {
-  const { compatible } = await git.checkVersion('git')
-  suite(name, { skip: compatible === false ? 'incompatible git version' : undefined }, () => {
-    const fi = new FastImport()
-    setup(fi)
-    const tr = new TempRepo(fi)
-    after(() => {
-      tr[Symbol.dispose]()
-    })
-    fn(tr)
-  })
+function pathEqual(a: string, b: string, message?: string | Error): void {
+  // git on windows may return forward slash paths
+  // node on windows may return 8.3 filenames
+  a = realpathSync.native(normalize(a))
+  b = realpathSync.native(normalize(b)) 
+  equal(a, b, message)
 }

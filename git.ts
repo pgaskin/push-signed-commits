@@ -96,7 +96,7 @@ export async function checkVersion(git: string): Promise<{
   compatible: boolean | undefined,
 }> {
   const ver = await version(git)
-  const match = /^(\d+)[.](\d+)[.](\d+)$/.exec(ver)
+  const match = /^(\d+)[.](\d+)[.](\d+)/.exec(ver) // do not anchor the end since git builds may add stuff to it
   let compatible
   if (match) {
     const major = parseInt(match[1])
