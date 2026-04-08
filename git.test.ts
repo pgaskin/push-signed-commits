@@ -3,7 +3,7 @@ import { equal, deepEqual, ok, rejects, throws } from 'node:assert'
 import * as git from './git.ts'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 suite('git', () => {
@@ -193,7 +193,6 @@ repoSuite('git (repo)', fi => {
     { path: 'back\\slash.txt', content: 'backslash\n' },
   ])
 }, tr => {
-  tr.git(['read-tree', 'refs/heads/main'])
   const tg = tr.revParse(git.peeledRev('refs/heads/target', 'commit'))
   const c1 = tr.revParse(git.peeledRev('refs/heads/main~1', 'commit'))
   const c2 = tr.revParse(git.peeledRev('refs/heads/main', 'commit'))
@@ -204,6 +203,8 @@ repoSuite('git (repo)', fi => {
   const t2 = tr.revParse(git.peeledRev('refs/heads/main', 'tree'))
   const tm = tr.revParse(git.peeledRev('refs/heads/misc', 'tree'))
   const tsp = tr.revParse(git.peeledRev('refs/heads/special', 'tree'))
+
+  tr.mkdir('emptydir')
 
   describe('version', () => {
     it('returns a version string', async () => {
@@ -216,28 +217,28 @@ repoSuite('git (repo)', fi => {
 
   describe('head', () => {
     it('returns tip of main', async () => {
-      equal(await git.head('git'), c2)
+      equal(await git.head('git', tr.path), c2)
     })
   })
 
   describe('commits', () => {
     it('single rev resolves to tip', async () => {
-      deepEqual(await git.commits('git', 'refs/heads/main'), [c2])
+      deepEqual(await git.commits('git', tr.path, 'refs/heads/main'), [c2])
     })
     it('range', async () => {
-      deepEqual(await git.commits('git', `${c1}..${c2}`), [c2])
+      deepEqual(await git.commits('git', tr.path, `${c1}..${c2}`), [c2])
     })
   })
 
   describe('parents', () => {
     it('root commit has none', async () => {
-      deepEqual(await git.parents('git', c1), [])
+      deepEqual(await git.parents('git', tr.path, c1), [])
     })
     it('second commit has one parent', async () => {
-      deepEqual(await git.parents('git', c2), [c1])
+      deepEqual(await git.parents('git', tr.path, c2), [c1])
     })
     it('merge commit has two parents', async () => {
-      const ps = await git.parents('git', c4)
+      const ps = await git.parents('git', tr.path, c4)
       equal(ps.length, 2)
       ok(ps.includes(c2))
       ok(ps.includes(c3))
@@ -246,22 +247,22 @@ repoSuite('git (repo)', fi => {
 
   describe('message', () => {
     it('returns commit message', async () => {
-      equal(await git.message('git', c1), 'initial\n')
+      equal(await git.message('git', tr.path, c1), 'initial\n')
     })
     it('decodes iso-8859-1 message to utf-8', async () => {
-      equal(await git.message('git', c5), 'café\n')
+      equal(await git.message('git', tr.path, c5), 'café\n')
     })
   })
 
   describe('diffTrees', () => {
     it('shows added file between t1 and t2', async () => {
       deepEqual(
-        await git.diffTrees('git', t1, t2),
+        await git.diffTrees('git', tr.path, t1, t2),
         [{ status: 'A', path: 'foo.txt' }],
       )
     })
     it('handles special characters in filenames', async () => {
-      const diff = await git.diffTrees('git', t1, tsp)
+      const diff = await git.diffTrees('git', tr.path, t1, tsp)
       const paths = diff.map(e => e.path).sort()
       deepEqual(paths, ['"quoted".txt', 'back\\slash.txt'])
     })
@@ -269,48 +270,48 @@ repoSuite('git (repo)', fi => {
 
   describe('listTree', () => {
     it('regular blob', async () => {
-      const [e] = await git.listTree('git', t1, 'README.md')
+      const [e] = await git.listTree('git', tr.path, t1, 'README.md')
       equal(e.type, 'blob')
       equal(e.mode, 100644)
     })
     it('executable blob', async () => {
-      const [e] = await git.listTree('git', tm, 'script.sh')
+      const [e] = await git.listTree('git', tr.path, tm, 'script.sh')
       equal(e.type, 'blob')
       equal(e.mode, 100755)
     })
     it('subdirectory tree', async () => {
-      const [e] = await git.listTree('git', tm, 'subdir')
+      const [e] = await git.listTree('git', tr.path, tm, 'subdir')
       equal(e.type, 'tree')
       equal(e.mode, 40000)
     })
     it('gitlink', async () => {
-      const [e] = await git.listTree('git', tm, 'sub')
+      const [e] = await git.listTree('git', tr.path, tm, 'sub')
       equal(e.type, 'commit')
       equal(e.mode, 160000)
       equal(e.name, tg)
     })
     it('double-quoted filename', async () => {
-      const [e] = await git.listTree('git', tsp, '"quoted".txt')
+      const [e] = await git.listTree('git', tr.path, tsp, '"quoted".txt')
       equal(e.path, '"quoted".txt')
     })
     it('backslash in filename', async () => {
-      const [e] = await git.listTree('git', tsp, 'back\\slash.txt')
+      const [e] = await git.listTree('git', tr.path, tsp, 'back\\slash.txt')
       equal(e.path, 'back\\slash.txt')
     })
   })
 
   describe('catFile', () => {
     it('returns blob contents', async () => {
-      const [entry] = await git.listTree('git', t1, 'README.md')
-      equal((await git.catFile('git', entry.name)).toString(), 'hello\n')
+      const [entry] = await git.listTree('git', tr.path, t1, 'README.md')
+      equal((await git.catFile('git', tr.path, entry.name)).toString(), 'hello\n')
     })
     it('returns staged content, not working tree', async () => {
       tr.writeFile('partial.txt', 'staged\n')
       tr.add('partial.txt')
       tr.writeFile('partial.txt', 'staged\nmodified\n')
       try {
-        const [entry] = await git.listIndex('git', 'partial.txt')
-        const content = (await git.catFile('git', entry.name)).toString()
+        const [entry] = await git.listIndex('git', tr.path, 'partial.txt')
+        const content = (await git.catFile('git', tr.path, entry.name)).toString()
         ok(content.includes('staged'))
         ok(!content.includes('modified'))
       } finally {
@@ -322,13 +323,13 @@ repoSuite('git (repo)', fi => {
 
   describe('diffStaged', () => {
     it('empty after read-tree HEAD', async () => {
-      deepEqual(await git.diffStaged('git', 'HEAD'), [])
+      deepEqual(await git.diffStaged('git', tr.path, 'HEAD'), [])
     })
     it('shows staged add', async () => {
       tr.writeFile('staged.txt', 'staged\n')
       tr.add('staged.txt')
       try {
-        deepEqual(await git.diffStaged('git', 'HEAD'), [{ status: 'A', path: 'staged.txt' }])
+        deepEqual(await git.diffStaged('git', tr.path, 'HEAD'), [{ status: 'A', path: 'staged.txt' }])
       } finally {
         tr.reset('staged.txt')
         tr.removeFile('staged.txt')
@@ -338,7 +339,7 @@ repoSuite('git (repo)', fi => {
 
   describe('listIndex', () => {
     it('returns staged files', async () => {
-      const paths = (await git.listIndex('git', '.')).map(e => e.path).sort()
+      const paths = (await git.listIndex('git', tr.path, '.')).map(e => e.path).sort()
       deepEqual(paths, ['README.md', 'foo.txt'])
     })
   })
@@ -353,25 +354,60 @@ repoSuite('git (repo)', fi => {
       })
     }
     it('commits rejects nonexistent ref', async () => {
-      await assertGitError(git.commits('git', 'refs/heads/nonexistent'))
+      await assertGitError(git.commits('git', tr.path, 'refs/heads/nonexistent'))
     })
     it('parents rejects bad oid', async () => {
-      await assertGitError(git.parents('git', 'notanoid' as git.CommitOID))
+      await assertGitError(git.parents('git', tr.path, 'notanoid' as git.CommitOID))
     })
     it('message rejects bad oid', async () => {
-      await assertGitError(git.message('git', 'notanoid' as git.CommitOID))
+      await assertGitError(git.message('git', tr.path, 'notanoid' as git.CommitOID))
     })
     it('diffTrees rejects bad oids', async () => {
-      await assertGitError(git.diffTrees('git', 'bad1' as git.TreeOID, 'bad2' as git.TreeOID))
+      await assertGitError(git.diffTrees('git', tr.path, 'bad1' as git.TreeOID, 'bad2' as git.TreeOID))
     })
     it('listTree rejects bad oid', async () => {
-      await assertGitError(git.listTree('git', 'bad' as git.TreeOID, ''))
+      await assertGitError(git.listTree('git', tr.path, 'bad' as git.TreeOID, ''))
     })
     it('catFile rejects bad oid', async () => {
-      await assertGitError(git.catFile('git', 'bad' as git.BlobOID))
+      await assertGitError(git.catFile('git', tr.path, 'bad' as git.BlobOID))
     })
     it('diffStaged rejects bad tree', async () => {
-      await assertGitError(git.diffStaged('git', 'bad' as git.TreeOID))
+      await assertGitError(git.diffStaged('git', tr.path, 'bad' as git.TreeOID))
+    })
+  })
+
+  describe('repo', () => {
+    const funcs = [
+      'head',
+      'commits',
+      'parents',
+      'message',
+      'diffTrees',
+      'listTree',
+      'catFile',
+      'diffStaged',
+      'listIndex',
+    ]
+    it('has the git version', async () => {
+      const repo = await git.repo('git', tr.path)
+      ok(repo.version)
+    })
+    it('resolves the absolute git dir path', async () => {
+      const repo = await git.repo('git', tr.path)
+      equal(repo.gitDir, resolve(tr.gitDir))
+    })
+    it('works within a subdirectory', async () => {
+      const repo = await git.repo('git', join(tr.path, 'emptydir'))
+      equal(repo.gitDir, resolve(tr.gitDir))
+    })
+    it('returns a wrapper around the repo functions', async () => {
+      const repo = await git.repo('git', tr.path)
+      for (const name of funcs) {
+        ok(Object.hasOwn(repo, name), name)
+      }
+    })
+    it('fails if not a git dir', async () => {
+      await rejects(git.repo('git', join(tr.path, '..')), /not a git repository/)
     })
   })
 })
@@ -432,23 +468,26 @@ class FastImport {
 
 class TempRepo implements Disposable {
   readonly path: string
+  readonly gitDir: string
 
   constructor(fi: FastImport) {
     this.path = mkdtempSync(join(tmpdir(), 'git-test-'))
+    this.gitDir = join(this.path, '.git')
     this.git(['init', '-q', '--initial-branch=main', '.'])
     this.git(['config', 'core.autocrlf', 'false'])
     this.git(['fast-import', '--quiet'], fi.toBuffer())
-  }
-
-  git(args: string[], input?: Buffer): void {
-    const r = spawnSync('git', ['-C', this.path, ...args], input !== undefined ? { input } : { encoding: 'utf-8' as const })
-    if (r.status !== 0) throw new Error(`git ${JSON.stringify(args)}: exit status ${r.status}: ${Buffer.isBuffer(r.stderr) ? r.stderr.toString('utf-8') : r.stderr}`)
+    this.git(['read-tree', 'refs/heads/main'])
   }
 
   writeFile(path: string, content: string): void {
     const full = join(this.path, path)
     mkdirSync(dirname(full), { recursive: true })
     writeFileSync(full, content)
+  }
+
+  mkdir(path: string): void {
+    const full = join(this.path, path)
+    mkdirSync(full)
   }
 
   removeFile(path: string): void {
@@ -461,6 +500,11 @@ class TempRepo implements Disposable {
 
   reset(...paths: string[]): void {
     this.git(['reset', '--', ...paths])
+  }
+
+  git(args: string[], input?: Buffer): void {
+    const r = spawnSync('git', ['-C', this.path, ...args], input !== undefined ? { input } : { encoding: 'utf-8' })
+    if (r.status !== 0) throw new Error(`git ${JSON.stringify(args)}: exit status ${r.status}: ${Buffer.isBuffer(r.stderr) ? r.stderr.toString('utf-8') : r.stderr}`)
   }
 
   revParse<T extends git.GitObjectType>(rev: git.PeeledRev<T>): git.TypedOID<T> {
@@ -480,10 +524,7 @@ async function repoSuite(name: string, setup: (fi: FastImport) => void, fn: (tr:
     const fi = new FastImport()
     setup(fi)
     const tr = new TempRepo(fi)
-    const savedCwd = process.cwd()
-    process.chdir(tr.path)
     after(() => {
-      process.chdir(savedCwd);
       tr[Symbol.dispose]()
     })
     fn(tr)

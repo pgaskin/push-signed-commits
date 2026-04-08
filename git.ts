@@ -1,4 +1,7 @@
 import { spawn } from 'node:child_process'
+import { debuglog } from 'node:util'
+
+const debug = debuglog('git') // NODE_DEBUG=git
 
 /** Git object types from object.h. */
 export const objectType = {
@@ -76,7 +79,7 @@ export class GitParseError extends Error {
 }
 
 export async function version(git: string): Promise<string> {
-  const out = await run(false, git, 'version')
+  const out = await run(false, git, null, 'version')
   const line = out.next()
   if (line.done) {
     throw new GitParseError(`Bad git version output ${out}`)
@@ -106,8 +109,50 @@ export async function checkVersion(git: string): Promise<{
   }
 }
 
-export async function head(git: string): Promise<CommitOID> {
-  const out = await run(false, git, 'rev-parse', '--verify', 'HEAD')
+export interface Repo {
+  version: string,
+  gitDir: string,
+  head: RepoFunc<typeof head>,
+  commits: RepoFunc<typeof commits>,
+  parents: RepoFunc<typeof parents>,
+  message: RepoFunc<typeof message>,
+  diffStaged: RepoFunc<typeof diffStaged>,
+  diffTrees: RepoFunc<typeof diffTrees>,
+  listIndex: RepoFunc<typeof listIndex>,
+  listTree: RepoFunc<typeof listTree>,
+  catFile: RepoFunc<typeof catFile>,
+}
+
+type RepoFunc<F> = F extends (git: string, repo: string, ...args: infer P) => infer R ? (...args: P) => R : never
+
+export async function repo(git: string, repo: string): Promise<Repo> {
+  const { version, compatible } = await checkVersion(git)
+  if (compatible === false) { // don't fail if we can't parse the version for some reason
+    throw new Error(`Incompatible git version ${version}`)
+  }
+  const gitDir = await absoluteGitDir(git, repo)
+  return {
+    version,
+    gitDir,
+    head: head.bind(null, git, gitDir),
+    commits: commits.bind(null, git, gitDir),
+    parents: parents.bind(null, git, gitDir),
+    message: message.bind(null, git, gitDir),
+    diffStaged: diffStaged.bind(null, git, gitDir),
+    diffTrees: diffTrees.bind(null, git, gitDir),
+    listIndex: listIndex.bind(null, git, gitDir),
+    listTree: listTree.bind(null, git, gitDir),
+    catFile: catFile.bind(null, git, gitDir),
+  }
+}
+
+async function absoluteGitDir(git: string, repo: string): Promise<string> {
+  const out = await run(false, git, repo, 'rev-parse', '--absolute-git-dir')
+  return out.all('git dir')
+}
+
+export async function head(git: string, repo: string): Promise<CommitOID> {
+  const out = await run(false, git, repo, 'rev-parse', '--verify', 'HEAD')
   for (const oid of out) {
     parseOID<CommitOID>(oid)
     return oid
@@ -115,8 +160,8 @@ export async function head(git: string): Promise<CommitOID> {
   throw new GitParseError(`Expected oid for successful rev-parse, got nothing`)
 }
 
-export async function commits(git: string, revision: string): Promise<CommitOID[]> {
-  const out = await run(false, git,
+export async function commits(git: string, repo: string, revision: string): Promise<CommitOID[]> {
+  const out = await run(false, git, repo,
     'rev-list',         // verify revs, list commits between them, and resolve them to their commit hash
     '-z',               // null-terminated output
     '--no-walk',        // if a single rev is specified, only resolve that one; ignored if a range is specified
@@ -133,8 +178,8 @@ export async function commits(git: string, revision: string): Promise<CommitOID[
   return oids
 }
 
-export async function parents(git: string, commit: Committish): Promise<CommitOID[]> {
-  const out = await run(false, git, 'rev-parse', commit + '^@') // unlike sha^, this will not fail if a commit has no parents
+export async function parents(git: string, repo: string, commit: Committish): Promise<CommitOID[]> {
+  const out = await run(false, git, repo, 'rev-parse', commit + '^@') // unlike sha^, this will not fail if a commit has no parents
   const oids = []
   for (const oid of out) {
     parseOID<CommitOID>(oid)
@@ -143,8 +188,8 @@ export async function parents(git: string, commit: Committish): Promise<CommitOI
   return oids
 }
 
-export async function message(git: string, commit: Committish): Promise<string> {
-  const out = await run(false, git,
+export async function message(git: string, repo: string, commit: Committish): Promise<string> {
+  const out = await run(false, git, repo,
     '-c', 'i18n.logOutputEncoding=UTF-8', // if the commit message is not UTF-8, re-encode it
     'show',                               // show a formatted object
     '-s',                                 // only what we ask for, not the entire diff
@@ -152,14 +197,7 @@ export async function message(git: string, commit: Committish): Promise<string> 
     '--end-of-options',                   // no more options
     commit,                               // commit
   )
-  let msg = out.all()
-  if (msg.length) {
-    if (!msg.endsWith('\n')) {
-      throw new GitParseError(json`Expected git show to append a newline to the raw commit message, but didn't find one: ${msg}`)
-    }
-    msg = msg.slice(0, -1)
-  }
-  return msg
+  return out.all('raw commit message')
 }
 
 export type GitDiffEntry = {
@@ -167,8 +205,8 @@ export type GitDiffEntry = {
   path: string,
 }
 
-export async function diffStaged(git: string, tree: Treeish): Promise<GitDiffEntry[]> {
-  const out = await run(false, git,
+export async function diffStaged(git: string, repo: string, tree: Treeish): Promise<GitDiffEntry[]> {
+  const out = await run(false, git, repo,
     'diff-index',       // low-level tree diff
     '-z',               // null-terminated
     '-r',               // recurse into trees (and don't return the trees themselves)
@@ -180,8 +218,8 @@ export async function diffStaged(git: string, tree: Treeish): Promise<GitDiffEnt
   return parseDiff(out)
 }
 
-export async function diffTrees(git: string, a: Treeish, b: Treeish): Promise<GitDiffEntry[]> {
-  const out = await run(false, git,
+export async function diffTrees(git: string, repo: string, a: Treeish, b: Treeish): Promise<GitDiffEntry[]> {
+  const out = await run(false, git, repo,
     'diff-tree',        // low-level tree diff
     '-z',               // null-terminated
     '-r',               // recurse into trees (and don't return the trees themselves)
@@ -218,8 +256,8 @@ export type GitTreeEntry = {
   }
 }[GitObjectType]
 
-export async function listIndex(git: string, path: string): Promise<GitTreeEntry[]> {
-  const out = await run(false, git,
+export async function listIndex(git: string, repo: string, path: string): Promise<GitTreeEntry[]> {
+  const out = await run(false, git, repo,
     'ls-files',                    // information about a tree object in the index and working directory
     '-z',                          // null terminated
     '--cached',                    // only index (i.e.,  staging area), not working tree files
@@ -230,8 +268,8 @@ export async function listIndex(git: string, path: string): Promise<GitTreeEntry
   return parseTree(out, false)
 }
 
-export async function listTree(git: string, tree: TreeishOID, path: string): Promise<GitTreeEntry[]> {
-  const out = await run(false, git,
+export async function listTree(git: string, repo: string, tree: TreeishOID, path: string): Promise<GitTreeEntry[]> {
+  const out = await run(false, git, repo,
     'ls-tree',                     // information about a tree object in the repository
     '-z',                          // null terminated
     `--format=${parseTreeFormat}`, // fields
@@ -287,20 +325,21 @@ function parseTree(out: GitOutput, quoted: boolean): GitTreeEntry[] {
   return ent
 }
 
-export async function catFile(git: string, oid: OID): Promise<Buffer> {
-  return await run(true, git, 'cat-file', '-p', '--end-of-options', oid)
+export async function catFile(git: string, repo: string, oid: OID): Promise<Buffer> {
+  return await run(true, git, repo, 'cat-file', '-p', '--end-of-options', oid)
 }
 
 interface GitOutput extends IteratorObject<string, void, void> {
   /** Get the next newline/null-delimited (depending on -z) item. */
   next(): IteratorResult<string, void>
-  /** Get the entire UTF-8 output. */
-  all(): string
+  /** Get the entire newline-terminated UTF-8 output. */
+  all(what: string): string
 }
 
-function run<T extends boolean>(raw: T, git: string, ...args: string[]): Promise<T extends true ? Buffer : GitOutput> {
+function run<T extends boolean>(raw: T, git: string, dir: string | null, ...args: string[]): Promise<T extends true ? Buffer : GitOutput> {
   return new Promise((resolve, reject) => {
-    const child = spawn(git, args)
+    debug('%s', `${dir}: ${git} ${JSON.stringify(args)}`)
+    const child = spawn(git, [...(dir == null ? [] : ['-C', dir]), ...args])
     const stdout: Buffer[] = []
     const stderr: Buffer[] = []
     child.stdout.on('data', chunk => stdout.push(chunk))
@@ -325,7 +364,15 @@ function run<T extends boolean>(raw: T, git: string, ...args: string[]): Promise
           }
         }(all)
         out = Object.defineProperty(out, 'all', {
-          value: () => all,
+          value: (what: string) => {
+            if (all.length) {
+              if (!all.endsWith('\n')) {
+                throw new GitParseError(`Expected git to append a newline to the ${what}, but didn't find one: ${JSON.stringify(all)}`)
+              }
+              return all.slice(0, -1)
+            }
+            return ''
+          },
           enumerable: false,
           writable: true,
           configurable: true,

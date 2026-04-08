@@ -12,7 +12,7 @@ export class NotPushableError extends Error {
   }
 }
 
-async function changes(gitBinary: string, diff: git.GitDiffEntry[], commit?: git.CommitOID | undefined) {
+async function changes(repo: git.Repo, diff: git.GitDiffEntry[], commit?: git.CommitOID | undefined): Promise<github.FileChanges> {
   const additions = []
   const deletions = []
   for (const file of diff) {
@@ -21,8 +21,8 @@ async function changes(gitBinary: string, diff: git.GitDiffEntry[], commit?: git
       case git.diffStatus.modified:
       case git.diffStatus.typeChanged:
         const objs = commit
-          ? await git.listTree(gitBinary, commit, file.path)
-          : await git.listIndex(gitBinary, file.path)
+          ? await repo.listTree(commit, file.path)
+          : await repo.listIndex(file.path)
         if (objs.length !== 1 || objs[0].type == 'tree') {
           // diff-tree / diff-files doesn't return trees when -r, so it should only ever have one
           throw new git.GitParseError(`Get tree object ${file.path}: expected exactly one non-tree object, got ${JSON.stringify(objs)}`)
@@ -46,10 +46,10 @@ async function changes(gitBinary: string, diff: git.GitDiffEntry[], commit?: git
           default:
             throw new NotPushableError(commit, `contains a non-regular (mode ${obj.mode}) file`, file.path)
         }
-        const buf = await git.catFile(gitBinary, obj.name)
+        const buf = await repo.catFile(obj.name)
         additions.push({
           path: obj.path,
-          contents: buf.toString('base64')
+          contents: github.encodeBase64(buf),
         })
         break
 
