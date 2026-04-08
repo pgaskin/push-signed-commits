@@ -1,5 +1,8 @@
-import crypto from 'node:crypto'
+import type { KeyObject } from 'node:crypto'
 import type { OID } from './git.ts'
+import { createSign } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 /** A GitHub token. */
 export type GitHubToken = string & { __token: true }
@@ -10,14 +13,34 @@ export type GitHubApiUrl = string & { __ghapi: true }
 /** The GitHub GraphQL API base URL. */
 export type GitHubGraphqlUrl = string & { __ghgqlapi: true }
 
-/** The user agent to use for requests. */
-export let userAgent = 'push-signed-commits'
-
 export const DefaultGitHubApi = 'https://api.github.com' as GitHubApiUrl
 export const DefaultGitHubGraphql = 'https://api.github.com/graphql' as GitHubGraphqlUrl
+export const DefaultUserAgent = await defaultUserAgent()
+
+let userAgent = DefaultUserAgent
+
+/** Sets the user agent used for requests. */
+export function setUserAgent(ua: string): void {
+  userAgent = ua || DefaultUserAgent
+}
+
+async function defaultUserAgent(): Promise<string> {
+  const json = await readFile(join(import.meta.dirname, '..', 'package.json'))
+  const pkg = JSON.parse(json.toString('utf-8'))
+  let ua = `${pkg.name}`
+  if (process.env['GITHUB_ACTIONS']) {
+    ua += ' github-actions (' + [
+      `runner-environment=${process.env['RUNNER_ENVIRONMENT']}`,
+      `action=${process.env['GITHUB_ACTION']}`,
+      `run-id=${process.env['GITHUB_RUN_ID']}`,
+      `actor-id=${process.env['GITHUB_ACTOR_ID']}`,
+    ].join('; ') + ')'
+  }
+  return ua
+}
 
 /** Creates a signed GitHub App JWT. */
-export function appJwt(appId: number, rsaKey: crypto.KeyObject): GitHubToken {
+export function appJwt(appId: number, rsaKey: KeyObject): GitHubToken {
   const header = Buffer.from(JSON.stringify({
     alg: 'RS256',
     typ: 'JWT',
@@ -30,7 +53,7 @@ export function appJwt(appId: number, rsaKey: crypto.KeyObject): GitHubToken {
     iss: String(appId),
   })).toString('base64url')
 
-  const sign = crypto.createSign('RSA-SHA256')
+  const sign = createSign('RSA-SHA256')
   sign.update(`${header}.${payload}`)
   const signature = sign.sign(rsaKey, 'base64url')
 

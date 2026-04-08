@@ -2,7 +2,7 @@
   "name": "push-signed-commits",
   "private": true,
   "type": "module",
-  "main": "action.ts",
+  "main": "lib/action.ts",
   "engines": {
     "node": ">= 24"
   },
