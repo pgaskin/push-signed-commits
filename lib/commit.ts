@@ -15,7 +15,7 @@ export class NotPushableError extends Error {
   }
 }
 
-interface Commit {
+export interface Commit {
   input: Omit<CreateCommitOnBranchInput, 'branch'>,
   local: CommitOID | null,
 }
@@ -60,7 +60,7 @@ export async function* commits(repo: Repo, revision: string): AsyncGenerator<Com
     const { subject, body } = splitCommitMessage(message)
 
     const files = await repo.diffTrees(parent, commit)
-    const { additions, deletions } = await changes(repo, files)
+    const { additions, deletions } = await changes(repo, files, commit)
 
     yield {
       input: {

@@ -1,6 +1,7 @@
 import type { KeyObject } from 'node:crypto'
 import type { OID } from './git.ts'
 import { createSign } from 'node:crypto'
+import { env } from 'node:process'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -28,12 +29,12 @@ async function defaultUserAgent(): Promise<string> {
   const json = await readFile(join(import.meta.dirname, '..', 'package.json'))
   const pkg = JSON.parse(json.toString('utf-8'))
   let ua = `${pkg.name}`
-  if (process.env['GITHUB_ACTIONS']) {
+  if (env['GITHUB_ACTIONS']) {
     ua += ' github-actions (' + [
-      `runner-environment=${process.env['RUNNER_ENVIRONMENT']}`,
-      `action=${process.env['GITHUB_ACTION']}`,
-      `run-id=${process.env['GITHUB_RUN_ID']}`,
-      `actor-id=${process.env['GITHUB_ACTOR_ID']}`,
+      `runner-environment=${env['RUNNER_ENVIRONMENT']}`,
+      `action=${env['GITHUB_ACTION']}`,
+      `run-id=${env['GITHUB_RUN_ID']}`,
+      `actor-id=${env['GITHUB_ACTOR_ID']}`,
     ].join('; ') + ')'
   }
   return ua

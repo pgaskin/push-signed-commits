@@ -5,6 +5,7 @@ import { Console } from 'node:console'
 import { createPrivateKey, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { styleText } from 'node:util'
+import { exit, env, stdout, stderr } from 'node:process'
 import { repo } from './git.ts'
 import { NotPushableError, commits, staged } from './commit.ts'
 import {
@@ -35,8 +36,8 @@ export async function main(): Promise<void> {
     insecureSkipVerify: getBoolInput('insecure-skip-verify') ?? false,
     dryRun: getBoolInput('dry-run') ?? false,
     githubToken: getInput('github-token') as GitHubToken,
-    githubApiUrl: getUrlInput('github-api-url') as GitHubApiUrl || process.env['GITHUB_API_URL'] as GitHubApiUrl || DefaultGitHubApi,
-    githubGraphqlUrl: getUrlInput('github-graphql-url') as GitHubGraphqlUrl || process.env['GITHUB_GRAPHQL_URL'] as GitHubGraphqlUrl || DefaultGitHubGraphql,
+    githubApiUrl: getUrlInput('github-api-url') as GitHubApiUrl || env['GITHUB_API_URL'] as GitHubApiUrl || DefaultGitHubApi,
+    githubGraphqlUrl: getUrlInput('github-graphql-url') as GitHubGraphqlUrl || env['GITHUB_GRAPHQL_URL'] as GitHubGraphqlUrl || DefaultGitHubGraphql,
     appId: getInput('app-id'),
     appKey: getInput('app-key'),
     gitBinary: getInput('git-binary') || 'git',
@@ -81,7 +82,7 @@ export async function main(): Promise<void> {
   try {
     const r = await repo(input.gitBinary, input.path)
     if (input.insecureSkipVerify) {
-      process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
+      env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
     }
     if (input.userAgent != '') {
       setUserAgent(input.userAgent)
@@ -245,13 +246,13 @@ function getBoolInput(name: string): boolean | undefined {
 // actions/core@v3.0.0/src/core.ts, but simpler
 function getInput(name: string): string {
   const key = `INPUT_${name.replace(/ /g, '_').toUpperCase()}`
-  return process.env[key]?.trim() ?? ''
+  return env[key]?.trim() ?? ''
 }
 
 // actions/core@v3.0.0/src/core.ts, but simpler
 function setOutput(name: string, value: string): void {
   if (!issueFileCommand('OUTPUT', name, value)) {
-    process.stdout.write(EOL)
+    stdout.write(EOL)
     issueCommand("set-output", { name }, value)
   }
 }
@@ -271,12 +272,12 @@ function issueCommand(command: string, properties: {[key: string]: any}, message
       }
     }
   }
-  process.stdout.write(`::${command}${props}::${message.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}${EOL}`)
+  stdout.write(`::${command}${props}::${message.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}${EOL}`)
 }
 
 // actions/core@v3.0.0/src/file-command.ts, but simpler
 function issueFileCommand(command: string, key: string, value: string): boolean {
-  const path = process.env[`GITHUB_${command}`]
+  const path = env[`GITHUB_${command}`]
   if (path) {
     if (!existsSync(path)) {
       throw new Error(`Missing ${command} command file ${path}`)
@@ -293,17 +294,19 @@ function issueFileCommand(command: string, key: string, value: string): boolean 
 
 if (import.meta.main) {
   globalThis.console = new Console({
-    stdout: process.stderr,
-    stderr: process.stderr,
+    stdout: stderr,
+    stderr: stderr,
     colorMode: true,
   })
   try {
     await main()
+    exit(0)
   } catch (err) {
     if (err instanceof Error) {
       console.log(`${styleText(['red', 'bold'], `${err.name}:`)} ${styleText('red', err.message)}`)
     } else {
       console.log(`${styleText(['red', 'bold'], `Error:`)} ${styleText('red', `${err}`)}`)
     }
+    exit(1)
   }
 }

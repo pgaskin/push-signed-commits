@@ -13,12 +13,20 @@ repoSuite('commit', fi => {
   fi.commit('refs/heads/main', 1_000_000_004, 'gitlink\n', [c4], [{ path: 'submodule', gitlink: dummy }])
   fi.commit('refs/heads/single', 1_000_000_005, 'orphan\n', [], [])
   fi.commit('refs/heads/merge', 1_000_000_006, 'merge\n', [c1, c2], [])
+  const e1 = fi.commit('refs/heads/everything', 1_000_000_000, 'initial commit\n', [], [])
+  const e2 = fi.commit('refs/heads/everything', 1_000_000_003, 'test commit\n\ntest', [e1], [{ path: 'file.txt', content: 'content\n' }, { path: 'file1.txt', content: 'content\n' }])
+  const e3 = fi.commit('refs/heads/everything', 1_000_000_002, '\nanother commit\n\n', [e2], [{ path: 'file.txt' }, { path: 'file1.txt', content: 'content update\n' }])
+  fi.commit('refs/heads/everything', 1_000_000_003, 'test commit\n\ntest', [e3], [{ path: 'file.txt', content: 'content update\n' }, { path: 'file3.txt', content: 'test\n' }])
 }, tr => {
   const c1 = tr.revParse(git.peeledRev('main~4', 'commit'))
   const c2 = tr.revParse(git.peeledRev('main~3', 'commit'))
   const c3 = tr.revParse(git.peeledRev('main~2', 'commit'))
   const c4 = tr.revParse(git.peeledRev('main~1', 'commit'))
   const c5 = tr.revParse(git.peeledRev('main', 'commit'))
+  const e1 = tr.revParse(git.peeledRev('everything~3', 'commit'))
+  const e2 = tr.revParse(git.peeledRev('everything~2', 'commit'))
+  const e3 = tr.revParse(git.peeledRev('everything~1', 'commit'))
+  const e4 = tr.revParse(git.peeledRev('everything', 'commit'))
 
   tr.writeFile('staged', 'foo')
   tr.writeFile('unstaged', 'bar')
@@ -167,6 +175,61 @@ repoSuite('commit', fi => {
         locals.push(c.local)
       }
       deepStrictEqual(locals, [c2])
+    })
+
+    it('creates commits from existing commits', async () => {
+      const repo = await git.repo('git', tr.path)
+      const commits = await Array.fromAsync(commit.commits(repo, `${e1}..${e4}`))
+      deepStrictEqual(commits, [{
+        input: {
+          expectedHeadOid: e1,
+          fileChanges: {
+            additions: [
+              { path: 'file.txt', contents: 'Y29udGVudAo=', },
+              { path: 'file1.txt', contents: 'Y29udGVudAo=', }
+            ],
+            deletions: [],
+          },
+          message: {
+            body: 'test',
+            headline: 'test commit',
+          },
+        },
+        local: e2,
+      }, {
+        input: {
+          expectedHeadOid: e2,
+          fileChanges: {
+            additions: [
+              { path: 'file1.txt', contents: 'Y29udGVudCB1cGRhdGUK', },
+            ],
+            deletions: [
+              { path: 'file.txt' },
+            ],
+          },
+          message: {
+            body: '',
+            headline: 'another commit',
+          },
+        },
+        local: e3,
+      }, {
+        input: {
+          expectedHeadOid: e3,
+          fileChanges: {
+            additions: [
+              { path: 'file.txt', contents: 'Y29udGVudCB1cGRhdGUK', },
+              { path: 'file3.txt', contents: 'dGVzdAo=', },
+            ],
+            deletions: [],
+          },
+          message: {
+            body: 'test',
+            headline: 'test commit',
+          },
+        },
+        local: e4,
+      }])
     })
   })
 })
