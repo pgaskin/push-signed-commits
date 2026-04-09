@@ -1,7 +1,1 @@
 node_modules
-push-signed-commits
-cover
-*.out
-*.log
-*.bin
-*.git

@@ -1,26 +1,34 @@
 # push-signed-commits
 
-Create verified commits for bots or workflows via the GitHub API.
+Create verified/signed commits as bots or GitHub Actions.
 
-<!-- TODO: write more tests
- - generate test repos with git fast-import
- - unit tests for git stuff
- - integration tests for change generation
- - e2e tests on a test repo, also testing the cli interface and action inputs, and that the output trees and commit messages match
+- Zero dependencies, cross-platform.
+- Uses an existing commit, a range of commits, or a new commit with staged changes.
+- Commits will be authored by the owner of the token.
+- Commits will be signed and committed by GitHub.
+- Preserves the full commit message, but resets the committed/authored date.
+- The new commits are not pulled automatically, but you can get the hash from the outputs.
+- Rejects commits containing content not supported by the [`createCommitOnBranch`](https://docs.github.com/en/graphql/reference/mutations#createcommitonbranch) mutation including executable files, symlinks, gitlinks, merge commits.
+
+<!-- TODO:
+  - write more tests
+    - integration tests for change generation
+    - e2e tests on a test repo, also testing the cli interface and action inputs, and that the output trees and commit messages match
+  - rewrite the cli version
 -->
 
 ### Quick Start
 
-##### GitHub Actions
-
 ```yaml
 # with the github actions token
-- uses: pgaskin/push-signed-commits@v0.0.6
+- uses: pgaskin/push-signed-commits@v0.0.7
   with:
     commit-message: commit message
+```
 
+```yaml
 # with a github app installation token
-- uses: pgaskin/push-signed-commits@v0.0.6
+- uses: pgaskin/push-signed-commits@v0.0.7
   with:
     path: other-repo
     repository: username/other-repo
@@ -28,82 +36,12 @@ Create verified commits for bots or workflows via the GitHub API.
     commit-message: commit message
 ```
 
-##### Standalone
-
-```bash
-# with a github token
-GITHUB_TOKEN=... go run pgaskin/push-signed-commits@v0.0.6 -commit username/repo master 'commit message'
-
-# with a github app installation token
-APP_PRIVATE_KEY=... go run pgaskin/push-signed-commits@v0.0.6 -app 1234 -commit username/other-repo master 'commit message'
-```
-
-### Features
-
-- Highly flexible commit selection.
-  - Supports pushing a single commit.
-  - Supports pushing a range of existing commits using git's native revision [syntax](https://git-scm.com/docs/gitrevisions).
-  - Supports pushing a new commit from the staging area.
-- Guarantees the correctness and fidelity of pushed commits.
-  - Supports pushing empty commits.
-  - Specifies the expected parent commit while pushing.
-  - Preserves multi-line commit message subjects and bodies.
-  - Converts non-utf-8 commit messages to utf-8.
-  - Refuses to push commits which can't be fully represented via the API, including ones with:
-    - Symlink update/creation.
-    - Submodule update/creation.
-    - Non-regular (i.e., executable) file update/creation.
-    - *Note: I've opened a feature request to add support for these types.*
-  - Uses git to do the diffing natively and reads directly from the repository rather than the working directory (unlike a few of the similar alternatives).
-    - The contents will be correct.
-    - The `core.autocrlf` option will be applied consistently (since git does it when adding to the index).
-    - Uses plumbing commands (e.g., `diff-tree` vs `diff`) to avoid being affected by the local git config.
-    - Supports [unusual](https://git-scm.com/docs/git-config#Documentation/git-config.txt-corequotePath) filenames with special characters (newlines, tabs, quotes, backslashes, non-printable characters, etc) by using null-terminated output.
-- High-quality implementation:
-  - Much more error checking and validation than other similar tools.
-  - Minimal implementation.
-  - No dependencies other than the native git command.
-  - 100% hand-coded and tested.
-- Automatically retries failed API calls.
-- Supports automatically creating and revoking an app installation token.
-
-### Limitations
-
-- The [`createCommitOnBranch`](https://docs.github.com/en/graphql/reference/mutations#createcommitonbranch) GraphQL mutation has some limitations:
-  - On the commit:
-    - Extremely large commits may fail due to size restrictions in the API.
-    - The GraphQL API rate limit applies (unlike regular push operations).
-    - Does not support creating new branches, the target branch must already exist.
-  - On the commit metadata:
-    - The author/commit date will be replaced with the current date.
-    - The author will be replaced with the name/email associated with the token's owner.
-    - The committer will be replaced with the web flow one (currently `GitHub <noreply@github.com>`).
-    - The commit hash will change (obviously).
-  - On the commit contents:
-    - Does not support pushing commits with multiple parents (i.e., merge commits).
-    - Does not support pushing commits containing changes to non-regular files (e.g., symlinks, submodules, executables). 
-- The local repository will not be automatically updated to the newly created commits (if you want that, fetch then do a `git reset --soft` to the last commit printed).
-
-### Compatibility
-
-You should pin this to an exact version for stability and security. A working version should continue to work indefinitely, as it uses core git functionality and the GitHub API is unlikely to change. For GitHub Actions, you will need to update it occasionally for toolchain updates.
-
-The arguments and output follow semantic versioning.
-
-### Security
-
-There are no external dependencies and release tags are immutable.
-
-Tokens are never printed to the output, even if verbose/debug mode is enabled.
-
-If an app installation token is created, it is automatically revoked before the command exits.
-
 ### Usage
 
-##### GitHub Actions
+#### Inputs
 
 ```yaml
-- run: pgaskin/push-signed-commits@v0.0.6
+- run: pgaskin/push-signed-commits@v0.0.7
   with:
     # The local repository path relative to the current directory. If you change
     # this, you probably also want to change the 'repository' and 'branch'.
@@ -136,8 +74,11 @@ If an app installation token is created, it is automatically revoked before the 
     # The commit message to use if creating a new commit from the staging area.
     commit-message: 'automatic commit'
 
+    # The file to read the commit message from. Overrides commit-message.
+    commit-message-file: ''
+
     # Override the user agent used to make GitHub API requests.
-    user-agent:
+    user-agent: ''
 
     # Do not validate SSL certificates when making GitHub API requests.
     insecure-skip-verify: false
@@ -170,13 +111,9 @@ If an app installation token is created, it is automatically revoked before the 
 
     # The git binary to use. If not sepecified, the one in the PATH is used.
     git-binary: ''
-
-    # The go binary to use to run the action. If not specified, one is
-    # automatically selected from the PATH and the runner tool cache.
-    go-binary: ''
 ```
 
-###### Outputs
+#### Outputs
 
 - `not-pushable`
   Set to true if one or more commits were not pushed (the oid outputs will
@@ -192,73 +129,22 @@ If an app installation token is created, it is automatically revoked before the 
   commits were pushed. On failure, it contains the ones pushed so far. Not
   set if 'dry-run'.
 
-- `src-commit-oids`
+- `local-commit-oids`
   The local commit hashes of all commits pushed corresponding to the ones in
   commit-oids. Not set if creating a new commit from the staging area. Still
   set if 'dry-run'.
 
-- `src-commit-oid`
+- `local-commit-oid`
   The local commit hashes of the last commit pushed corresponding to the
   ones in commit-oids. Not set if creating a new commit from the staging
   area. Still set if 'dry-run'.
 
-##### Standalone
-
-```
-usage:
-  go run github.com/pgaskin/push-signed-commits@v0.0.6 [flags] username/repo target_branch rev|rev..rev
-  go run github.com/pgaskin/push-signed-commits@v0.0.6 [flags] -commit [-allow-empty] username/repo target_branch commit_message
-
-flags:
-  -C string
-        change to a different directory before running the command
-  -app int
-        use a github app installation token for the specified app id (the installation id will be looked up for the target repo)
-  -app.key string
-        name of an environment variable containing the private key (value can be base64-encoded or have \n escaped newlines) (default "APP_PRIVATE_KEY")
-  -commit
-        commit the staged changes
-  -commit.allow-empty
-        allow an empty commit to be created (only valid with -commit)
-  -g string
-        use a different git binary (minimum version 2.38)
-  -k    do not validate ssl certificates
-  -n    do not push commits, just dump the mutations to stdout, one line per commit
-  -q    do not print status messages to stderr
-  -user-agent string
-        override the user agent for api requests (default "push-signed-commits/devel (linux/amd64; github.com/pgaskin/push-signed-commits)")
-  -v    print verbose information to stderr
-  -x    print the git commands to stderr
-
-env:
-  GITHUB_API_URL        github rest api endpoint (default "https://api.github.com")
-  GITHUB_GRAPHQL_URL    github graphql endpoint (default "https://api.github.com/graphql")
-  GITHUB_TOKEN          github token (required if not -n or -app)
-
-status:
-  0     success
-  1     error
-  2     invalid argument
-  30    not pushing anymore commits due to a commit with unsupported content
-
-The final commit hashes will be written to stdout as they are pushed.
-
-If there are no commits in the specified range (or -commit is specified without
-anything in the staging area or -allow-empty), the command does nothing (and
-prints a message if not -q), then exits with status 0.
-```
-
 ### Examples
 
-##### Create and push a commit if there are staged changes
-
-```bash
-export GITHUB_TOKEN=
-go run github.com/pgaskin/push-signed-commits@v0.0.6 -commit username/repo master $'commit message subject\n\ncommit message body'
-```
+#### Create and push a commit if there are staged changes
 
 ```yaml
-- uses: pgaskin/push-signed-commits@v0.0.6
+- uses: pgaskin/push-signed-commits@v0.0.7
   with:
     commit-message: |
       commit message subject
@@ -266,37 +152,27 @@ go run github.com/pgaskin/push-signed-commits@v0.0.6 -commit username/repo maste
       commit message body
 ```
 
-##### Create and push all commits on the current branch since the last pull
-
-```bash
-export GITHUB_TOKEN=
-go run github.com/pgaskin/push-signed-commits@v0.0.6 username/repo 'HEAD@{u}..HEAD'
-```
+#### Create and push all commits on the current branch since the last pull
 
 ```yaml
-- uses: pgaskin/push-signed-commits@v0.0.6
+- uses: pgaskin/push-signed-commits@v0.0.7
 ```
 
-##### Create and push all commits on the current branch since the last pull, then fetch the created commits
+#### Create and push all commits on the current branch since the last pull, then fetch the created commits
 
 ```yaml
-- uses: pgaskin/push-signed-commits@v0.0.6
+- uses: pgaskin/push-signed-commits@v0.0.7
   id: push
 - run: git fetch @{u} && git reset --soft ${{ steps.push.outputs.commit-oid }}
   if: steps.push.outputs.commit-oid != ''
 ```
 
-##### Push a single commit to a specific branch on another repository as a GitHub App
+#### Push a single commit to a specific branch on another repository as a GitHub App
 
 The app must have `contents:write` permission. The private key can be base64-encoded or newline-escaped.
 
-```bash
-export APP_PRIVATE_KEY=
-go run github.com/pgaskin/push-signed-commits@v0.0.6 -app 1234 username/other-repo 'HEAD@{u}..HEAD'
-```
-
 ```yaml
-- uses: pgaskin/push-signed-commits@v0.0.6
+- uses: pgaskin/push-signed-commits@v0.0.7
   with:
     path: other-repo
     repository: username/other-repo
@@ -305,6 +181,65 @@ go run github.com/pgaskin/push-signed-commits@v0.0.6 -app 1234 username/other-re
     app-id: 1234
     app-key: ${{ secrets.app_private_key }}
 ```
+
+### Features
+
+- Highly flexible commit selection.
+  - Supports pushing a single commit.
+  - Supports pushing a range of existing commits using git's native revision [syntax](https://git-scm.com/docs/gitrevisions).
+  - Supports pushing a new commit from the staging area.
+- Guarantees the correctness and fidelity of pushed commits.
+  - Supports pushing empty commits.
+  - Specifies the expected parent commit while pushing.
+  - Preserves multi-line commit message subjects and bodies.
+  - Converts non-utf-8 commit messages to utf-8.
+  - Refuses to push commits which can't be fully represented via the API, including ones with:
+    - Symlink update/creation.
+    - Submodule update/creation.
+    - Non-regular (i.e., executable) file update/creation.
+    - *Note: I've opened a feature request to add support for these types.*
+  - Uses git to do the diffing natively and reads directly from the repository rather than the working directory (unlike a few of the similar alternatives).
+    - The contents will be correct.
+    - The `core.autocrlf` option will be applied consistently (since git does it when adding to the index).
+    - Uses plumbing commands (e.g., `diff-tree` vs `diff`) to avoid being affected by the local git config.
+    - Supports [unusual](https://git-scm.com/docs/git-config#Documentation/git-config.txt-corequotePath) filenames with special characters (newlines, tabs, quotes, backslashes, non-printable characters, etc) by using null-terminated output.
+- High-quality implementation:
+  - Much more error checking and validation than other similar tools.
+  - Minimal implementation.
+  - No dependencies other than the native git command.
+  - Comprehensive cross-platform test suite.
+  - 100% hand-coded and tested.
+- Automatically retries failed API calls.
+- Supports automatically creating and revoking an app installation token.
+
+### Limitations
+
+- The [`createCommitOnBranch`](https://docs.github.com/en/graphql/reference/mutations#createcommitonbranch) GraphQL mutation has some limitations:
+  - On the commit:
+    - Extremely large commits may fail due to size restrictions in the API.
+    - The GraphQL API rate limit applies (unlike regular push operations).
+    - Does not support creating new branches, the target branch must already exist.
+  - On the commit metadata:
+    - The author/commit date will be replaced with the current date.
+    - The author will be replaced with the name/email associated with the token's owner.
+    - The committer will be replaced with the web flow one (currently `GitHub <noreply@github.com>`).
+    - The commit hash will change (obviously).
+  - On the commit contents:
+    - Does not support pushing commits with multiple parents (i.e., merge commits).
+    - Does not support pushing commits containing changes to non-regular files (e.g., symlinks, submodules, executables).
+- The local repository will not be automatically updated to the newly created commits (if you want that, fetch then do a `git reset --soft` to the last commit printed).
+
+### Compatibility
+
+This action follows semantic versioning. Release tags are immutable. You can pin it to an exact tag since a working version should continue to work for as long as the node version is supported, as it uses core git functionality and the GitHub API is unlikely to change.
+
+### Security
+
+There are no external dependencies and release tags are immutable.
+
+Tokens are never printed to the output, even if verbose/debug mode is enabled.
+
+If an app installation token is created, it is automatically revoked before the command exits.
 
 ### Alternatives
 

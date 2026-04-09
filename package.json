@@ -2,9 +2,13 @@
   "name": "push-signed-commits",
   "private": true,
   "type": "module",
-  "main": "action.ts",
+  "main": "lib/action.ts",
   "engines": {
     "node": ">= 24"
+  },
+  "scripts": {
+    "lint": "tsc",
+    "test": "node --test --experimental-test-coverage"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",
