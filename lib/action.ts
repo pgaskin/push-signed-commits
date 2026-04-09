@@ -35,8 +35,8 @@ export async function main(): Promise<void> {
     insecureSkipVerify: getBoolInput('insecure-skip-verify') ?? false,
     dryRun: getBoolInput('dry-run') ?? false,
     githubToken: getInput('github-token') as GitHubToken,
-    githubApiUrl: getUrlInput('github-api-url') as GitHubApiUrl || DefaultGitHubApi,
-    githubGraphqlUrl: getUrlInput('github-graphql-url') as GitHubGraphqlUrl || DefaultGitHubGraphql,
+    githubApiUrl: getUrlInput('github-api-url') as GitHubApiUrl || process.env['GITHUB_API_URL'] as GitHubApiUrl || DefaultGitHubApi,
+    githubGraphqlUrl: getUrlInput('github-graphql-url') as GitHubGraphqlUrl || process.env['GITHUB_GRAPHQL_URL'] as GitHubGraphqlUrl || DefaultGitHubGraphql,
     appId: getInput('app-id'),
     appKey: getInput('app-key'),
     gitBinary: getInput('git-binary') || 'git',
@@ -60,7 +60,7 @@ export async function main(): Promise<void> {
   if (input.appId == '' && input.githubToken == '') {
     throw new ActionInputError('github-token', 'required if app-id is not set')
   }
-  if (input.appId != '' && !Number.isInteger(parseInt(input.appId, 10))) {
+  if (input.appId != '' && !/^[0-9]+$/.test(input.appId)) {
     throw new ActionInputError('app-id', 'not a valid integer')
   }
   if (input.appKey != '') {
@@ -243,22 +243,13 @@ function getBoolInput(name: string): boolean | undefined {
 // https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
 
 // actions/core@v3.0.0/src/core.ts, but simpler
-export function getInput(name: string): string {
+function getInput(name: string): string {
   const key = `INPUT_${name.replace(/ /g, '_').toUpperCase()}`
   return process.env[key]?.trim() ?? ''
 }
 
 // actions/core@v3.0.0/src/core.ts, but simpler
-export function beginGroup(name: string): Disposable {
-  issueCommand('group', {}, name)
-  return { [Symbol.dispose]() { issueCommand('endgroup', {}, '') } }
-}
-
-// actions/core@v3.0.0/src/core.ts
-export const DEBUG = process.env['RUNNER_DEBUG'] === '1'
-
-// actions/core@v3.0.0/src/core.ts, but simpler
-export function setOutput(name: string, value: string): void {
+function setOutput(name: string, value: string): void {
   if (!issueFileCommand('OUTPUT', name, value)) {
     process.stdout.write(EOL)
     issueCommand("set-output", { name }, value)
@@ -266,7 +257,7 @@ export function setOutput(name: string, value: string): void {
 }
 
 // actions/core@v3.0.0/src/command.ts, but simpler
-export function issueCommand(command: string, properties: {[key: string]: any}, message: string): void {
+function issueCommand(command: string, properties: {[key: string]: any}, message: string): void {
   let props = ''
   if (properties) {
     for (const [key, val] of Object.entries(properties)) {
@@ -284,7 +275,7 @@ export function issueCommand(command: string, properties: {[key: string]: any}, 
 }
 
 // actions/core@v3.0.0/src/file-command.ts, but simpler
-export function issueFileCommand(command: string, key: string, value: string): boolean {
+function issueFileCommand(command: string, key: string, value: string): boolean {
   const path = process.env[`GITHUB_${command}`]
   if (path) {
     if (!existsSync(path)) {
