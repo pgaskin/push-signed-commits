@@ -268,10 +268,10 @@ export async function createCommitOnBranch(gh: GitHubGraphqlUrl, token: GitHubTo
   if (obj?.errors?.length) {
     for (const err of obj.errors) {
       if (err?.message?.includes('No commit exists with specified expectedHeadOid')) {
-        throw new Error(`Remote branch head is behind local parent commit (error: ${err})`)
+        throw new Error(`Remote branch head is behind local parent commit: ${err.type}: ${err.message}`)
       }
       if (err?.message?.includes('Expected branch to point to')) {
-        throw new Error(`Local parent commit is behind remote branch head (error: ${err})`)
+        throw new Error(`Local parent commit is behind remote branch head: ${err.type}: ${err.message}`)
       }
     }
     const msg = obj.errors.map(e => `\t${e.type}: ${e.message}`).join('\n')

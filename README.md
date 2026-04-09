@@ -129,12 +129,12 @@ Create verified/signed commits as bots or GitHub Actions.
   commits were pushed. On failure, it contains the ones pushed so far. Not
   set if 'dry-run'.
 
-- `src-commit-oids`
+- `local-commit-oids`
   The local commit hashes of all commits pushed corresponding to the ones in
   commit-oids. Not set if creating a new commit from the staging area. Still
   set if 'dry-run'.
 
-- `src-commit-oid`
+- `local-commit-oid`
   The local commit hashes of the last commit pushed corresponding to the
   ones in commit-oids. Not set if creating a new commit from the staging
   area. Still set if 'dry-run'.
