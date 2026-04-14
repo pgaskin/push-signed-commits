@@ -17,6 +17,8 @@ repoSuite('commit', fi => {
   const e2 = fi.commit('refs/heads/everything', 1_000_000_003, 'test commit\n\ntest', [e1], [{ path: 'file.txt', content: 'content\n' }, { path: 'file1.txt', content: 'content\n' }])
   const e3 = fi.commit('refs/heads/everything', 1_000_000_002, '\nanother commit\n\n', [e2], [{ path: 'file.txt' }, { path: 'file1.txt', content: 'content update\n' }])
   fi.commit('refs/heads/everything', 1_000_000_003, 'test commit\n\ntest', [e3], [{ path: 'file.txt', content: 'content update\n' }, { path: 'file3.txt', content: 'test\n' }])
+  const sym1 = fi.commit('refs/heads/symlink', 1_000_000_010, 'add symlink\n', [c1], [{ path: 'link.txt', symlink: 'target.txt' }])
+  fi.commit('refs/heads/symlink', 1_000_000_011, 'delete symlink\n', [sym1], [{ path: 'link.txt' }])
 }, tr => {
   const c1 = tr.revParse(git.peeledRev('main~4', 'commit'))
   const c2 = tr.revParse(git.peeledRev('main~3', 'commit'))
@@ -27,6 +29,8 @@ repoSuite('commit', fi => {
   const e2 = tr.revParse(git.peeledRev('everything~2', 'commit'))
   const e3 = tr.revParse(git.peeledRev('everything~1', 'commit'))
   const e4 = tr.revParse(git.peeledRev('everything', 'commit'))
+  const s1 = tr.revParse(git.peeledRev('symlink~1', 'commit'))
+  const s2 = tr.revParse(git.peeledRev('symlink', 'commit'))
 
   tr.writeFile('staged', 'foo')
   tr.writeFile('unstaged', 'bar')
@@ -83,6 +87,24 @@ repoSuite('commit', fi => {
       deepStrictEqual(additions, [])
       deepStrictEqual(deletions, [
         { path: 'submodule' },
+      ])
+    })
+
+    it('rejects updating symlink', async () => {
+      const repo = await git.repo('git', tr.path)
+      const diff = await repo.diffTrees(c1, s1)
+      await rejectsNotPushable(async () => {
+        await commit.changes(repo, [diffEntryFor(diff, 'link.txt')], s1)
+      })
+    })
+
+    it('does not reject deleting symlink', async () => {
+      const repo = await git.repo('git', tr.path)
+      const diff = await repo.diffTrees(s1, s2)
+      const { additions, deletions } = await commit.changes(repo, [diffEntryFor(diff, 'link.txt')], s2)
+      deepStrictEqual(additions, [])
+      deepStrictEqual(deletions, [
+        { path: 'link.txt' },
       ])
     })
 

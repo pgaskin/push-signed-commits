@@ -8,6 +8,7 @@ import * as git from './git.ts'
 export type FastImportFile =
   | { path: string, content: string, exec?: boolean }
   | { path: string, gitlink: string }
+  | { path: string, symlink: string }
   | { path: string }
 
 // printf '%s\n' 'commit refs/test/dummy' 'mark :1' 'committer T <t@t> 999999999 +0000' 'data 7' 'dummy' '' | git fast-import --quiet && git rev-parse refs/test/dummy && git update-ref -d refs/test/dummy`
@@ -51,6 +52,11 @@ export class FastImport {
       const qp = /["\\]/.test(f.path) ? '"' + f.path.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"' : f.path // just enough c-style quoting for our tests
       if ('gitlink' in f) {
         this.text(`M 160000 ${f.gitlink} ${qp}\n`)
+      } else if ('symlink' in f) {
+        const sb = Buffer.from(f.symlink, 'utf-8')
+        this.text(`M 120000 inline ${qp}\n`)
+        this.text(`data ${sb.byteLength}\n`)
+        this.chunks.push(sb)
       } else if ('content' in f) {
         const cb = Buffer.from(f.content, 'utf-8')
         this.text(`M ${f.exec ? '100755' : '100644'} inline ${qp}\n`)

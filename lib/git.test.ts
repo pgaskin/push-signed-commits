@@ -182,6 +182,10 @@ repoSuite('git (repo)', fi => {
     { path: 'subdir/deep.txt', content: 'deep\n' },
     { path: 'sub', gitlink: dummy },
   ])
+  fi.commit('refs/heads/symlink', 1_000_000_007, 'symlink\n', [c1], [
+    { path: 'link.txt', symlink: 'target.txt' },
+    { path: 'deep/link', symlink: '../file.txt' },
+  ])
   fi.commit('refs/heads/utf16', 1_000_000_005, Buffer.from('caf\xe9\n', 'latin1'), [c2], [], 'ISO-8859-1')
   // outoforder: commits with timestamps that don't match topological order
   // ood-first (parent) has a higher timestamp than ood-second (child)
@@ -204,6 +208,7 @@ repoSuite('git (repo)', fi => {
   const o3 = tr.revParse(git.peeledRev('refs/heads/outoforder~1', 'commit'))
   const o4 = tr.revParse(git.peeledRev('refs/heads/outoforder', 'commit'))
   const m1 = tr.revParse(git.peeledRev('refs/heads/misc', 'commit'))
+  const s1 = tr.revParse(git.peeledRev('refs/heads/symlink', 'commit'))
   const sp = process.platform !== 'win32' ? tr.revParse(git.peeledRev('refs/heads/special', 'commit')) : undefined
 
   tr.mkdir('emptydir')
@@ -312,6 +317,18 @@ repoSuite('git (repo)', fi => {
     it('backslash in filename', { skip: !sp }, async () => {
       const [e] = await git.listTree('git', tr.path, sp as git.CommitOID, 'back\\slash.txt')
       equal(e.path, 'back\\slash.txt')
+    })
+    it('symlink', async () => {
+      const [e] = await git.listTree('git', tr.path, s1, 'link.txt')
+      strictEqual(e.type, 'blob')
+      strictEqual(e.mode, 0o120000)
+      equal(e.path, 'link.txt')
+    })
+    it('nested symlink', async () => {
+      const [e] = await git.listTree('git', tr.path, s1, 'deep/link')
+      strictEqual(e.type, 'blob')
+      strictEqual(e.mode, 0o120000)
+      equal(e.path, 'deep/link')
     })
   })
 
