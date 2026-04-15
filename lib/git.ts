@@ -327,8 +327,8 @@ function parseTree(out: GitOutput, quoted: boolean): GitTreeEntry[] {
   return ent
 }
 
-export async function catFile(git: string, repo: string, oid: OID): Promise<Buffer> {
-  return await run(true, git, repo, 'cat-file', '-p', '--end-of-options', oid)
+export async function catFile(git: string, repo: string, oid: BlobOID): Promise<Buffer> {
+  return await run(true, git, repo, 'cat-file', '--end-of-options', 'blob', oid)
 }
 
 interface GitOutput extends IteratorObject<string, void, void> {

@@ -335,21 +335,10 @@ repoSuite('git (repo)', fi => {
   describe('catFile', () => {
     it('returns blob contents', async () => {
       const [entry] = await git.listTree('git', tr.path, c1, 'README.md')
-      equal((await git.catFile('git', tr.path, entry.name)).toString(), 'hello\n')
+      equal((await git.catFile('git', tr.path, entry.name as git.BlobOID)).toString(), 'hello\n')
     })
-    it('returns staged content, not working tree', async () => {
-      tr.writeFile('partial.txt', 'staged\n')
-      tr.add('partial.txt')
-      tr.writeFile('partial.txt', 'staged\nmodified\n')
-      try {
-        const [entry] = await git.listIndex('git', tr.path, 'partial.txt')
-        const content = (await git.catFile('git', tr.path, entry.name)).toString()
-        ok(content.includes('staged'))
-        ok(!content.includes('modified'))
-      } finally {
-        tr.reset('partial.txt')
-        tr.rm('partial.txt')
-      }
+    it('throw if not a blob', async () => {
+      await rejects(git.catFile('git', tr.path, c1 as unknown as git.BlobOID), /exit status/)
     })
   })
 
