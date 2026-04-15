@@ -114,7 +114,6 @@ export interface Repo {
   gitDir: string,
   head: RepoFunc<typeof head>,
   commits: RepoFunc<typeof commits>,
-  parents: RepoFunc<typeof parents>,
   message: RepoFunc<typeof message>,
   diffStaged: RepoFunc<typeof diffStaged>,
   diffTrees: RepoFunc<typeof diffTrees>,
@@ -136,7 +135,6 @@ export async function repo(git: string, repo: string): Promise<Repo> {
     gitDir,
     head: head.bind(null, git, gitDir),
     commits: commits.bind(null, git, gitDir),
-    parents: parents.bind(null, git, gitDir),
     message: message.bind(null, git, gitDir),
     diffStaged: diffStaged.bind(null, git, gitDir),
     diffTrees: diffTrees.bind(null, git, gitDir),
@@ -160,7 +158,7 @@ export async function head(git: string, repo: string): Promise<CommitOID> {
   throw new GitParseError(`Expected oid for successful rev-parse, got nothing`)
 }
 
-export async function commits(git: string, repo: string, revision: string): Promise<CommitOID[]> {
+export async function commits(git: string, repo: string, revision: string): Promise<[CommitOID, parents: CommitOID[]][]> {
   const out = await run(false, git, repo,
     'rev-list',         // verify revs, list commits between them, and resolve them to their commit hash
     '-z',               // null-terminated output
@@ -168,26 +166,27 @@ export async function commits(git: string, repo: string, revision: string): Prom
     '--topo-order',     // order by the commit graph, not the date
     '--reverse',        // starting from the parent
     '--first-parent',   // but only follow the first parent of merge commits (we'll filter those out later anyways)
+    '--parents',        // also show the commit parents
     '--end-of-options', // prevent rev from being parsed as an option
     revision,           // rev
     '--',               // prevent rev from being parsed as a path
   )
-  const oids = []
+  const res: [CommitOID, parents: CommitOID[]][] = []
   for (const oid of out) {
-    parseOID<CommitOID>(oid)
-    oids.push(oid)
+    const s = oid.split(' ')
+    const c = s.shift()
+    const p = s
+    if (!c) {
+      throw new GitParseError('Expected at least one oid per line')
+    }
+    parseOID<CommitOID>(c)
+    parseOIDs<CommitOID>(p)
+    if (p.length !== 0 && res.length !== 0 && p[0] != res[res.length-1][0]) {
+      throw new GitParseError('Expected at commits to be in topological order')
+    }
+    res.push([c, p])
   }
-  return oids
-}
-
-export async function parents(git: string, repo: string, commit: Committish): Promise<CommitOID[]> {
-  const out = await run(false, git, repo, 'rev-parse', commit + '^@') // unlike sha^, this will not fail if a commit has no parents
-  const oids = []
-  for (const oid of out) {
-    parseOID<CommitOID>(oid)
-    oids.push(oid)
-  }
-  return oids
+  return res
 }
 
 export async function message(git: string, repo: string, commit: Committish): Promise<string> {
@@ -407,6 +406,12 @@ function parseOID<T extends OID>(oid: string): asserts oid is T {
   }
   if (oid.length != 40 && oid.length != 64) {
     throw new GitParseError(json`Invalid OID ${oid} length ${oid.length}`)
+  }
+}
+
+function parseOIDs<T extends OID>(oids: string[]): asserts oids is T[] {
+  for (const oid of oids) {
+    parseOID<T>(oid)
   }
 }
 

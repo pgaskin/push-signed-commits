@@ -231,34 +231,22 @@ repoSuite('git (repo)', fi => {
 
   describe('commits', () => {
     it('single rev resolves to tip', async () => {
-      deepStrictEqual(await git.commits('git', tr.path, 'refs/heads/main'), [c2])
+      deepStrictEqual(await git.commits('git', tr.path, 'refs/heads/main'), [[c2, [c1]]])
     })
     it('empty range', async () => {
       deepStrictEqual(await git.commits('git', tr.path, `${c2}..${c2}`), [])
     })
     it('range', async () => {
-      deepStrictEqual(await git.commits('git', tr.path, `${c1}..${c2}`), [c2])
+      deepStrictEqual(await git.commits('git', tr.path, `${c1}..${c2}`), [[c2, [c1]]])
     })
     it('ordered from parent to child', async () => {
-      deepStrictEqual(await git.commits('git', tr.path, `${c1}..${c5}`), [c2, c5])
+      deepStrictEqual(await git.commits('git', tr.path, `${c1}..${c5}`), [[c2, [c1]], [c5, [c2]]])
     })
     it('is in topological order', async () => {
-      deepStrictEqual(await git.commits('git', tr.path, `${c1}..refs/heads/outoforder`), [o1, o2, o3, o4])
+      deepStrictEqual(await git.commits('git', tr.path, `${c1}..refs/heads/outoforder`), [[o1, []], [o2, [o1]], [o3, [o2]], [o4, [o3]]])
     })
-  })
-
-  describe('parents', () => {
-    it('root commit has none', async () => {
-      deepStrictEqual(await git.parents('git', tr.path, c1), [])
-    })
-    it('second commit has one parent', async () => {
-      deepStrictEqual(await git.parents('git', tr.path, c2), [c1])
-    })
-    it('merge commit has two parents', async () => {
-      const ps = await git.parents('git', tr.path, c4)
-      strictEqual(ps.length, 2)
-      ok(ps.includes(c2))
-      ok(ps.includes(c3))
+    it('shows multiple parents', async () => {
+      deepStrictEqual(await git.commits('git', tr.path, `${c4}`), [[c4, [c2, c3]]])
     })
   })
 
@@ -378,9 +366,6 @@ repoSuite('git (repo)', fi => {
     it('commits rejects nonexistent ref', async () => {
       await assertGitError(git.commits('git', tr.path, 'refs/heads/nonexistent'))
     })
-    it('parents rejects bad oid', async () => {
-      await assertGitError(git.parents('git', tr.path, 'notanoid' as git.CommitOID))
-    })
     it('message rejects bad oid', async () => {
       await assertGitError(git.message('git', tr.path, 'notanoid' as git.CommitOID))
     })
@@ -402,7 +387,6 @@ repoSuite('git (repo)', fi => {
     const funcs = [
       'head',
       'commits',
-      'parents',
       'message',
       'diffTrees',
       'listTree',

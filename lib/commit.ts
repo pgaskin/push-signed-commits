@@ -44,8 +44,7 @@ export async function staged(repo: Repo, message: string): Promise<Commit> {
 }
 
 export async function* commits(repo: Repo, revision: string): AsyncGenerator<Commit> {
-  for (const commit of await repo.commits(revision)) {
-    const parents = await repo.parents(commit)
+  for (const [commit, parents] of await repo.commits(revision)) {
     switch (parents.length) {
       case 0:
         throw new NotPushableError(commit, `has no parents (creating a new branch is not supported)`)
