@@ -96,7 +96,7 @@ Create verified/signed commits as bots or GitHub Actions.
 
     # GitHub GraphQL API URL. If not set, it will be set from GITHUB_GRAPHQL_URL
     # to be the same as the one where the workflow is running from (e.g.,
-    # https://api.github.com or https://my-ghes-server.example.com/api/graphql).
+    # https://api.github.com/graphql or https://my-ghes-server.example.com/api/graphql).
     github-graphql-url: ''
 
     # Authenticate as a GitHub App with the specified ID. The installation ID
