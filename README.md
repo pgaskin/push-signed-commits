@@ -282,6 +282,8 @@ This action follows semantic versioning. Release tags are immutable. You can pin
 
 The library also follows semantic versioning, but only the default exports in `index.ts` are covered.
 
+See [CONTRIBUTING](./CONTRIBUTING.md#versioning) for more information.
+
 ### Security
 
 There are no external dependencies and release tags are immutable.
