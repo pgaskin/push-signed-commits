@@ -3,19 +3,13 @@
 Create verified/signed commits as bots or GitHub Actions.
 
 - Zero dependencies, cross-platform.
+- Available as a GitHub Action or library.
 - Uses an existing commit, a range of commits, or a new commit with staged changes.
 - Commits will be authored by the owner of the token.
 - Commits will be signed and committed by GitHub.
 - Preserves the full commit message, but resets the committed/authored date.
 - The new commits are not pulled automatically, but you can get the hash from the outputs.
 - Rejects commits containing content not supported by the [`createCommitOnBranch`](https://docs.github.com/en/graphql/reference/mutations#createcommitonbranch) mutation including executable files, symlinks, gitlinks, merge commits.
-
-<!-- TODO:
-  - write more tests
-    - integration tests for change generation
-    - e2e tests on a test repo, also testing the cli interface and action inputs, and that the output trees and commit messages match
-  - rewrite the cli version
--->
 
 ### Quick Start
 
@@ -34,6 +28,52 @@ Create verified/signed commits as bots or GitHub Actions.
     repository: username/other-repo
     branch: master
     commit-message: commit message
+```
+
+```javascript
+// as a library
+import { NotPushableError, staged, commits, createCommitOnBranch } from 'push-signed-commits'
+
+const url = process.env['GITHUB_GRAPHQL_URL'] ?? 'https://api.github.com/graphql'
+const token = process.env['GITHUB_TOKEN'] ?? ''
+const git = 'git'
+const path = '.'
+const repo = 'username/repo'
+const branch = 'master'
+
+if (!token) {
+  throw new Error('Token is required')
+}
+
+try {
+  for await (const c of await commits(git, path, 'HEAD@{u}..HEAD')) {
+    console.log(`pushing commit ${c.local}`)
+    await createCommitOnBranch(url, token, {
+      branch: {
+        branchName: branch,
+        repositoryNameWithOwner: repo,
+      },
+      ...c.input,
+    })
+  }
+
+  const c = await staged(git, path, 'new commit')
+  if (c.input.fileChanges.additions.length || c.input.fileChanges.deletions.length) {
+    console.log('pushing staged changes')
+    await createCommitOnBranch(url, token, {
+      branch: {
+        branchName: branch,
+        repositoryNameWithOwner: repo,
+      },
+      ...c.input,
+    })
+  }
+} catch (err) {
+  if (err instanceof NotPushableError) {
+    // ... do something
+  }
+  throw err
+}
 ```
 
 ### Usage
