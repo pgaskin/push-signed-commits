@@ -23,7 +23,8 @@
   },
   "scripts": {
     "lint": "tsc",
-    "test": "node --test --experimental-test-coverage"
+    "test": "node --test --experimental-test-coverage",
+    "release": "node scripts/release.ts"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",
