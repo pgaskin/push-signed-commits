@@ -44,7 +44,7 @@ export async function staged(git: string, repo: string, message: string): Promis
  * Create commits from one or more existing commits.
  * @param git Name or path of the git binary.
  * @param repo Path to the git repository (may be relative).
- * @param message Commit message.
+ * @param revision Commits (see man {@link https://git-scm.com/docs/gitrevisions|gitrevisions[7]}).
  * @returns The createCommitOnBranch inputs corresponding to each commit in the range in graph order, throwing a {@link NotPushableError} upon encountering one with unpushable changes.
  */
 export async function* commits(git: string, repo: string, revision: string): AsyncGenerator<Commit> {
