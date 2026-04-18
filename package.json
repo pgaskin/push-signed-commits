@@ -1,6 +1,21 @@
 {
   "name": "push-signed-commits",
   "version": "0.0.9",
+  "license": "MIT",
+  "description": "create verified/signed commits as a GitHub App",
+  "keywords": [
+    "git",
+    "github",
+    "commit"
+  ],
+  "homepage": "https://github.com/marketplace/actions/push-signed-commits",
+  "bugs": {
+    "url": "https://github.com/pgaskin/push-signed-commits/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pgaskin/push-signed-commits"
+  },
   "type": "module",
   "main": "lib/action.ts",
   "engines": {
