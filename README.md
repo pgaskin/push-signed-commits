@@ -30,50 +30,9 @@ Create verified/signed commits as bots or GitHub Actions.
     commit-message: commit message
 ```
 
-```javascript
-// as a library
-import { NotPushableError, staged, commits, createCommitOnBranch } from 'push-signed-commits'
-
-const url = process.env['GITHUB_GRAPHQL_URL'] ?? 'https://api.github.com/graphql'
-const token = process.env['GITHUB_TOKEN'] ?? ''
-const git = 'git'
-const path = '.'
-const repo = 'username/repo'
-const branch = 'master'
-
-if (!token) {
-  throw new Error('Token is required')
-}
-
-try {
-  for await (const c of await commits(git, path, 'HEAD@{u}..HEAD')) {
-    console.log(`pushing commit ${c.local}`)
-    await createCommitOnBranch(url, token, {
-      branch: {
-        branchName: branch,
-        repositoryNameWithOwner: repo,
-      },
-      ...c.input,
-    })
-  }
-
-  const c = await staged(git, path, 'new commit')
-  if (c.input.fileChanges.additions.length || c.input.fileChanges.deletions.length) {
-    console.log('pushing staged changes')
-    await createCommitOnBranch(url, token, {
-      branch: {
-        branchName: branch,
-        repositoryNameWithOwner: repo,
-      },
-      ...c.input,
-    })
-  }
-} catch (err) {
-  if (err instanceof NotPushableError) {
-    // ... do something
-  }
-  throw err
-}
+```bash
+# as a library
+npm install --save push-signed-commits@v0.0.10
 ```
 
 ### Usage
@@ -222,6 +181,53 @@ The app must have `contents:write` permission. The private key can be base64-enc
     app-key: ${{ secrets.app_private_key }}
 ```
 
+#### Library
+
+```javascript
+import { NotPushableError, staged, commits, createCommitOnBranch } from 'push-signed-commits'
+
+const url = process.env['GITHUB_GRAPHQL_URL'] ?? 'https://api.github.com/graphql'
+const token = process.env['GITHUB_TOKEN'] ?? ''
+const git = 'git'
+const path = '.'
+const repo = 'username/repo'
+const branch = 'master'
+
+if (!token) {
+  throw new Error('Token is required')
+}
+
+try {
+  for await (const c of await commits(git, path, 'HEAD@{u}..HEAD')) {
+    console.log(`pushing commit ${c.local}`)
+    await createCommitOnBranch(url, token, {
+      branch: {
+        branchName: branch,
+        repositoryNameWithOwner: repo,
+      },
+      ...c.input,
+    })
+  }
+
+  const c = await staged(git, path, 'new commit')
+  if (c.input.fileChanges.additions.length || c.input.fileChanges.deletions.length) {
+    console.log('pushing staged changes')
+    await createCommitOnBranch(url, token, {
+      branch: {
+        branchName: branch,
+        repositoryNameWithOwner: repo,
+      },
+      ...c.input,
+    })
+  }
+} catch (err) {
+  if (err instanceof NotPushableError) {
+    // ... do something
+  }
+  throw err
+}
+```
+
 ### Features
 
 - Highly flexible commit selection.
@@ -272,6 +278,8 @@ The app must have `contents:write` permission. The private key can be base64-enc
 ### Compatibility
 
 This action follows semantic versioning. Release tags are immutable. You can pin it to an exact tag since a working version should continue to work for as long as the node version is supported, as it uses core git functionality and the GitHub API is unlikely to change.
+
+The library also follows semantic versioning, but only the default exports in `index.ts` are covered.
 
 ### Security
 
