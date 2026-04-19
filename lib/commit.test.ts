@@ -1,5 +1,5 @@
-import { describe, it } from 'node:test'
 import { deepStrictEqual, ok, rejects } from 'node:assert'
+import { describe, it } from 'node:test'
 import { dummy, repoSuite } from './git_test.ts'
 import * as git from './git.ts'
 import * as commit from './commit.ts'

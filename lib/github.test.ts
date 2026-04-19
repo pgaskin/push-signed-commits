@@ -1,5 +1,5 @@
-import { describe, it, mock } from 'node:test'
 import { strictEqual, ok, rejects } from 'node:assert'
+import { describe, it, mock } from 'node:test'
 import * as github from './github.ts'
 
 describe('fetchRetry', () => {

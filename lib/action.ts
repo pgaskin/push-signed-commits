@@ -1,8 +1,8 @@
 import { Console } from 'node:console'
 import { type KeyObject, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, readFileSync } from 'node:fs'
-import { env, exit, stderr, stdout } from 'node:process'
 import { EOL } from 'node:os'
+import { env, exit, stderr, stdout } from 'node:process'
 import { styleText } from 'node:util'
 import {
   type GitHubToken,

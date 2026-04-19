@@ -1,8 +1,8 @@
-import { suite, after } from 'node:test'
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { suite, after } from 'node:test'
 import * as git from './git.ts'
 
 export type FastImportFile =

@@ -1,8 +1,7 @@
-import type { KeyObject } from 'node:crypto'
-import type { OID } from './git.ts'
-import { createSign } from 'node:crypto'
+import { type KeyObject, createSign } from 'node:crypto'
 import { env } from 'node:process'
 import { debuglog } from 'node:util'
+import { type OID } from './git.ts'
 import pkg from '../package.json' with { type: 'json' }
 
 const debug = debuglog('github') // NODE_DEBUG=github

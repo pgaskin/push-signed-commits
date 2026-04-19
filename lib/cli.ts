@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-import { exit, stderr } from 'node:process'
 import { Console } from 'node:console'
 import { EOL } from 'node:os'
+import { exit, stderr } from 'node:process'
 import { styleText } from 'node:util'
-import { type Options, OptionError, parseOptions, help } from './options.ts'
 import {
-    type GitHubToken,
-    type GitHubApiUrl, DefaultGitHubApi,
-    type GitHubGraphqlUrl, DefaultGitHubGraphql,
-    DefaultUserAgent, setRetryLog,
+  type GitHubToken,
+  type GitHubApiUrl, DefaultGitHubApi,
+  type GitHubGraphqlUrl, DefaultGitHubGraphql,
+  DefaultUserAgent, setRetryLog,
 } from './github.ts'
 import { main, parseInteger, parsePrivateKey, validateBaseUrl } from './main.ts'
+import { type Options, OptionError, parseOptions, help } from './options.ts'
 
 export const options = {
   allowEmpty: { type: 'bool', long: 'allow-empty', help: 'create en empty commit even if there are no changes' }, // matches git-commit

@@ -1,7 +1,11 @@
-import type { BlobOID, CommitOID, GitDiffEntry, Repo } from "./git.ts"
-import type { CreateCommitOnBranchInput, FileChanges } from "./github.ts"
-import { encodeBase64 } from "./github.ts"
-import { diffStatus, splitCommitMessage } from "./git.ts"
+import {
+  type BlobOID, type CommitOID, type GitDiffEntry, type Repo,
+  diffStatus, splitCommitMessage,
+} from "./git.ts"
+import {
+  type CreateCommitOnBranchInput, type FileChanges,
+  encodeBase64,
+} from "./github.ts"
 
 export class NotPushableError extends Error {
   public commit: CommitOID | undefined

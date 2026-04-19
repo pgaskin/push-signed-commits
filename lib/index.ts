@@ -1,5 +1,4 @@
-import type { Commit } from './commit.ts'
-import { staged as staged_, commits as commits_ } from './commit.ts'
+import { type Commit, staged as staged_, commits as commits_ } from './commit.ts'
 import { repo as repo_ } from './git.ts'
 import type { CreateCommitOnBranchInput, GitHubGraphqlUrl, GitHubToken, GitObjectID } from './github.ts'
 import { createCommitOnBranch as createCommitOnBranch_ } from './github.ts'
