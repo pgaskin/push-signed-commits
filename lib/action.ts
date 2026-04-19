@@ -73,7 +73,7 @@ if (import.meta.main) {
     stderr: stderr,
     colorMode: 'auto',
   })
-  const println = (msg?: string) => console.log(msg)
+  const println = (msg?: string) => msg ? console.log(msg) : console.log()
   setRetryLog(msg => println(styleText(['dim', 'yellow'], msg)))
   exit(await main(println, inputs(), outputs))
 }
