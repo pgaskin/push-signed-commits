@@ -15,14 +15,14 @@ Create verified/signed commits as bots or GitHub Actions.
 
 ```yaml
 # with the github actions token
-- uses: pgaskin/push-signed-commits@v1.0.1
+- uses: pgaskin/push-signed-commits@v1.0.2
   with:
     commit-message: commit message
 ```
 
 ```yaml
 # with a github app installation token
-- uses: pgaskin/push-signed-commits@v1.0.1
+- uses: pgaskin/push-signed-commits@v1.0.2
   with:
     path: other-repo
     repository: username/other-repo
@@ -34,17 +34,17 @@ Create verified/signed commits as bots or GitHub Actions.
 
 ```bash
 # with a github token (cli)
-GITHUB_TOKEN=github_pat_xxx npx -y push-signed-commits@v1.0.1 -m 'commit message' username/repo master
+GITHUB_TOKEN=github_pat_xxx npx -y push-signed-commits@v1.0.2 -m 'commit message' username/repo master
 ```
 
 ```bash
 # with a github app installation token (cli)
-APP_PRIVATE_KEY="$(< private.pem)" npx -y push-signed-commits@v1.0.1 -C other-repo -m 'commit message' --app 1234 username/other-repo master
+APP_PRIVATE_KEY="$(< private.pem)" npx -y push-signed-commits@v1.0.2 -C other-repo -m 'commit message' --app 1234 username/other-repo master
 ```
 
 ```bash
 # as a library
-npm install --save push-signed-commits@v1.0.1
+npm install --save push-signed-commits@v1.0.2
 ```
 
 ### Usage
@@ -54,7 +54,7 @@ npm install --save push-signed-commits@v1.0.1
 ##### Inputs
 
 ```yaml
-- uses: pgaskin/push-signed-commits@v1.0.1
+- uses: pgaskin/push-signed-commits@v1.0.2
   with:
 
     # The local repository path relative to the current directory. If you change
@@ -156,12 +156,12 @@ npm install --save push-signed-commits@v1.0.1
 #### CLI
 
 ```
-usage: npx -y push-signed-commits@v1.0.1 [options] username/repository target_branch [revision]
+usage: npx -y push-signed-commits@v1.0.2 [options] username/repository target_branch [revision]
 
       --allow-empty             create en empty commit even if there are no changes
   -m, --message message         commit message to use if creating a new commit from the staging area
   -F, --file path               read the commit message from the specified (overrides --message)
-  -A, --user-agent str          override the user agent for GitHub API requests (default "push-signed-commits/1.0.0 actions_orchestration_id/f29ddd6b-df8a-45f4-8ba4-eea5ca683e9e.release.__default")
+  -A, --user-agent str          override the user agent for GitHub API requests (default "push-signed-commits/1.0.1 actions_orchestration_id/da60e225-1150-4965-9bc0-d67a731a135d.release.__default")
   -k, --insecure                do not validate check tls certificates for GitHub API requests
   -n, --dry-run                 do not actually push commits, just print the mutations
       --github-token token      github token with contents:write permission (env GITHUB_TOKEN)
@@ -186,7 +186,7 @@ See [`./lib/index.ts`](./lib/index.ts).
 #### Create and push a commit if there are staged changes
 
 ```yaml
-- uses: pgaskin/push-signed-commits@v1.0.1
+- uses: pgaskin/push-signed-commits@v1.0.2
   with:
     commit-message: |
       commit message subject
@@ -195,25 +195,25 @@ See [`./lib/index.ts`](./lib/index.ts).
 ```
 
 ```bash
-GITHUB_TOKEN=github_pat_xxx npx -y push-signed-commits@v1.0.1 -m $'commit message subject\n\ncommit message body' username/repo master
+GITHUB_TOKEN=github_pat_xxx npx -y push-signed-commits@v1.0.2 -m $'commit message subject\n\ncommit message body' username/repo master
 ```
 
 #### Create and push all commits on the current branch since the last pull
 
 ```yaml
-- uses: pgaskin/push-signed-commits@v1.0.1
+- uses: pgaskin/push-signed-commits@v1.0.2
   with:
     revision: HEAD@{u}..HEAD
 ```
 
 ```bash
-GITHUB_TOKEN=github_pat_xxx npx -y push-signed-commits@v1.0.1 username/repo master HEAD@{u}..HEAD
+GITHUB_TOKEN=github_pat_xxx npx -y push-signed-commits@v1.0.2 username/repo master HEAD@{u}..HEAD
 ```
 
 #### Create and push all commits on the current branch since the last pull, then fetch the created commits
 
 ```yaml
-- uses: pgaskin/push-signed-commits@v1.0.1
+- uses: pgaskin/push-signed-commits@v1.0.2
   with:
     revision: HEAD@{u}..HEAD
   id: push
@@ -226,7 +226,7 @@ GITHUB_TOKEN=github_pat_xxx npx -y push-signed-commits@v1.0.1 username/repo mast
 The app must have `contents:write` permission. The private key can be base64-encoded or newline-escaped.
 
 ```yaml
-- uses: pgaskin/push-signed-commits@v1.0.1
+- uses: pgaskin/push-signed-commits@v1.0.2
   with:
     path: other-repo
     repository: username/other-repo
@@ -238,7 +238,7 @@ The app must have `contents:write` permission. The private key can be base64-enc
 
 ```bash
 # with a github app installation token (cli)
-APP_PRIVATE_KEY="$(< private.pem)" npx -y push-signed-commits@v1.0.1 -C other-repo --app 1234 username/other-repo master HEAD
+APP_PRIVATE_KEY="$(< private.pem)" npx -y push-signed-commits@v1.0.2 -C other-repo --app 1234 username/other-repo master HEAD
 ```
 
 #### Library
