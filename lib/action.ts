@@ -1,12 +1,14 @@
-import { env, exit, stderr, stdout } from 'node:process'
 import { Console } from 'node:console'
-import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { type KeyObject, randomUUID } from 'node:crypto'
+import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { env, exit, stderr, stdout } from 'node:process'
 import { EOL } from 'node:os'
+import { styleText } from 'node:util'
 import {
   type GitHubToken,
   type GitHubApiUrl, DefaultGitHubApi,
   type GitHubGraphqlUrl, DefaultGitHubGraphql,
+  setRetryLog,
 } from './github.ts'
 import {
   type Output, main,
@@ -24,7 +26,7 @@ export class ActionInputError extends Error {
   }
 }
 
-export function inputs(): Parameters<typeof main>[0] {
+export function inputs(): Parameters<typeof main>[1] {
   try {
     return {
       path: getInput('path') || '.',
@@ -66,12 +68,14 @@ export function outputs(out: Output): void {
 }
 
 if (import.meta.main) {
-  globalThis.console = new Console({
+  const console = new Console({
     stdout: stderr,
     stderr: stderr,
-    colorMode: true,
+    colorMode: 'auto',
   })
-  exit(await main(inputs(), outputs))
+  const println = (msg?: string) => console.log(msg)
+  setRetryLog(msg => println(styleText(['dim', 'yellow'], msg)))
+  exit(await main(println, inputs(), outputs))
 }
 
 function getKeyInput(name: string): KeyObject | undefined {

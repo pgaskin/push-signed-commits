@@ -2,11 +2,13 @@
 import { exit, stderr } from 'node:process'
 import { Console } from 'node:console'
 import { EOL } from 'node:os'
+import { styleText } from 'node:util'
 import { type Options, OptionError, parseOptions, help } from './options.ts'
 import {
     type GitHubToken,
     type GitHubApiUrl, DefaultGitHubApi,
     type GitHubGraphqlUrl, DefaultGitHubGraphql,
+    setRetryLog,
 } from './github.ts'
 import { main, parseInteger, parsePrivateKey, validateBaseUrl } from './main.ts'
 
@@ -60,10 +62,12 @@ export function parse() {
 }
 
 if (import.meta.main) {
-  globalThis.console = new Console({
+  const console = new Console({
     stdout: stderr,
     stderr: stderr,
     colorMode: true,
   })
-  exit(await main(parse()))
+  const println = (msg?: string) => msg ? console.log(msg) : console.log()
+  setRetryLog(msg => println(styleText(['dim', 'yellow'], msg)))
+  exit(await main(println, parse()))
 }

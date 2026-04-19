@@ -37,7 +37,7 @@ export interface Output {
   localOIDs?: CommitOID[], // not set if staged
 }
 
-export async function main(opts: Options, done?: (out: Output) => void): Promise<number> {
+export async function main(println: (msg?: string) => void, opts: Options, done?: (out: Output) => void): Promise<number> {
   let revoke = false
   let commitMessage: string
   let token: GitHubToken | undefined
@@ -87,16 +87,16 @@ export async function main(opts: Options, done?: (out: Output) => void): Promise
         }
         try {
           const jwt = appJwt(opts.appId, opts.appKey)
-          console.log(`Getting app ${opts.appId} installation for repo ${opts.repository}`)
+          println(styleText('white', `Getting app ${opts.appId} installation for repo ${opts.repository}`))
           const installID = await getRepoInstallation(opts.githubApiUrl, jwt, opts.repository)
-          console.log(`Generating app token for app ${opts.appId} installation ${installID}`)
+          println(styleText('white', `Generating app token for app ${opts.appId} installation ${installID}`))
           token = await createInstallationToken(opts.githubApiUrl, jwt, opts.repository, installID)
-          console.log(`Have app installation token`)
+          println(styleText('white', `Have app installation token`))
           revoke = true
         } catch (err) {
           throw new Error(`Failed to create app installation token for repo ${opts.repository}: ${err}`)
         }
-        console.log()
+        println()
       } else {
         if (!opts.githubToken) {
           throw new Error(`GitHub token is required if app id is not set`)
@@ -105,31 +105,31 @@ export async function main(opts: Options, done?: (out: Output) => void): Promise
       }
     }
 
-    console.log(styleText('white', `Repo ${r.gitDir}`))
+    println(styleText('white', `Repo ${r.gitDir}`))
     const logCommit = (input: Omit<CreateCommitOnBranchInput, 'branch'>) => {
-      console.log(styleText('gray', `  ^ ${input.expectedHeadOid}`))
-      console.log(styleText('gray', `  # subject: ${JSON.stringify(input.message.headline)}`))
+      println(styleText('gray', `  ^ ${input.expectedHeadOid}`))
+      println(styleText('gray', `  # subject: ${JSON.stringify(input.message.headline)}`))
       if (input.message.body != '') {
-        console.log(styleText('gray', `  # body ${JSON.stringify(input.message.body)}`))
+        println(styleText('gray', `  # body ${JSON.stringify(input.message.body)}`))
       }
       for (const f of input.fileChanges.additions) {
-        console.log(styleText('gray', `  + ${f.path} (${Buffer.from(f.contents, 'base64').length} bytes = ${f.contents.length} enc)`))
+        println(styleText('gray', `  + ${f.path} (${Buffer.from(f.contents, 'base64').length} bytes = ${f.contents.length} enc)`))
       }
       for (const f of input.fileChanges.deletions) {
-        console.log(styleText('gray', `  - ${f.path}`))
+        println(styleText('gray', `  - ${f.path}`))
       }
     }
     if (opts.revision == null) {
       const commit = await staged(r, commitMessage)
       if (!opts.allowEmpty && commit.input.fileChanges.additions.length === 0 && commit.input.fileChanges.deletions.length === 0) {
-        console.log(`${styleText('yellow', `No changes to commit from staging area`)}`)
+        println(`${styleText('yellow', `No changes to commit from staging area`)}`)
       } else {
-        console.log()
-        console.log(`${styleText('cyan', `${opts.dryRun ? `Would push` : `Pushing`} new commit from staging area over ${opts.repository}:${opts.branch}@${commit.input.expectedHeadOid}`)}`)
+        println()
+        println(`${styleText('cyan', `${opts.dryRun ? `Would push` : `Pushing`} new commit from staging area over ${opts.repository}:${opts.branch}@${commit.input.expectedHeadOid}`)}`)
         logCommit(commit.input)
         if (!opts.dryRun) {
           const oid = await createCommitOnBranch(opts.githubGraphqlUrl, token!, {branch, ...commit.input}) as CommitOID
-          console.log(`${styleText('green', `  = ${oid}`)}`)
+          println(`${styleText('green', `  = ${oid}`)}`)
           remoteOIDs.push(oid)
         }
       }
@@ -139,38 +139,38 @@ export async function main(opts: Options, done?: (out: Output) => void): Promise
         if (prev) {
           commit.input.expectedHeadOid = prev
         }
-        console.log()
-        console.log(`${styleText('cyan', `${opts.dryRun ? `Would push` : `Pushing`} commit ${commit.local} over ${opts.repository}:${opts.branch}@${commit.input.expectedHeadOid}`)}`)
+        println()
+        println(`${styleText('cyan', `${opts.dryRun ? `Would push` : `Pushing`} commit ${commit.local} over ${opts.repository}:${opts.branch}@${commit.input.expectedHeadOid}`)}`)
         logCommit(commit.input)
         if (!opts.dryRun) {
           const oid = await createCommitOnBranch(opts.githubGraphqlUrl, token!, {branch, ...commit.input}) as CommitOID
           remoteOIDs.push(oid)
           prev = oid
-          console.log(`${styleText('green', ` = ${oid}`)}`)
+          println(`${styleText('green', ` = ${oid}`)}`)
         } else {
           prev = commit.local!.replace(/./g, '?') as CommitOID
         }
         localOIDs.push(commit.local!)
       }
       if (prev === undefined) {
-        console.log(`${styleText('yellow', `No commits to push from ${opts.revision}`)}`)
+        println(`${styleText('yellow', `No commits to push from ${opts.revision}`)}`)
       }
     }
   } catch (err) {
     if (err instanceof NotPushableError) {
       notPushable = true
     }
-    console.log()
+    println()
     if (err instanceof Error) {
-      console.log(`${styleText(['red', 'bold'], `${err.name}:`)} ${styleText('red', err.message)}`)
+      println(`${styleText(['red', 'bold'], `${err.name}:`)} ${styleText('red', err.message)}`)
       if (err.stack) {
-        console.log()
-        console.log(`${styleText(['gray', 'dim'], err.stack)}`)
+        println()
+        println(`${styleText(['gray', 'dim'], err.stack)}`)
       }
     } else {
-      console.log(`${styleText(['red', 'bold'], `Error:`)} ${styleText('red', `${err}`)}`)
+      println(`${styleText(['red', 'bold'], `Error:`)} ${styleText('red', `${err}`)}`)
     }
-    console.log()
+    println()
     return 1
   } finally {
     done?.({
@@ -179,13 +179,13 @@ export async function main(opts: Options, done?: (out: Output) => void): Promise
       localOIDs: opts.revision != null ? localOIDs : undefined,
     })
     if (revoke) {
-      console.log()
+      println()
       try {
-        console.log(`Revoking app installation token`)
+        println(styleText('white', `Revoking app installation token`))
         await revokeInstallationToken(opts.githubApiUrl, token!)
-        console.log(`Revoked app installation token`)
+        println(styleText('white', `Revoked app installation token`))
       } catch (err) {
-        console.log(styleText('yellow', `Failed to revoke app installation token, continuing anyways: ${err}`))
+        println(styleText('yellow', `Failed to revoke app installation token, continuing anyways: ${err}`))
       }
     }
   }

@@ -4,7 +4,9 @@ import { createSign } from 'node:crypto'
 import { env } from 'node:process'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { styleText } from 'node:util'
+import { debuglog } from 'node:util'
+
+const debug = debuglog('github') // NODE_DEBUG=github
 
 /** A GitHub token. */
 export type GitHubToken = string & { __token: true }
@@ -260,6 +262,12 @@ export interface RetryOptions {
   maxRetries?: number,
 }
 
+let retryLog: ((msg: string) => void) | undefined
+
+export function setRetryLog(fn: (msg: string) => void): void {
+  retryLog = fn
+}
+
 /**
  * Like fetch, but retries GitHub API requests using similar logic to
  * @octokit/plugin-throttling and @octokit/plugin-retry.
@@ -270,12 +278,17 @@ export async function fetchRetry(url: URL, init: RequestInit, opt?: RetryOptions
 
   for (let attempt = 1; ; attempt++) {
     const prefix = `${init.method ?? 'GET'} ${url} (attempt ${attempt})`
+    debug(prefix)
     let resp: Response | undefined
     let isRetryable = false
     let isSecondaryRateLimit = false
     try {
       resp = await fetch(url, init)
       const text = await resp.text()
+
+      if (resp) {
+        debug(`${prefix}: status=${resp.status} ${Array.from(resp.headers.entries()).filter(([name]) => name.toLowerCase().startsWith('x-ratelimit-')).map(([name, value]) => `${name}=${JSON.stringify(value)}`).join(' ')}`)
+      }
 
       if (resp.status >= 400) {
         if (text.includes('secondary rate')) { // like @octokit/plugin-throttling
@@ -294,6 +307,8 @@ export async function fetchRetry(url: URL, init: RequestInit, opt?: RetryOptions
 
       return [resp, text] as const
     } catch (err) {
+      debug(`${prefix}: failed (isRetryable=${isRetryable} isSecondaryRateLimit=${isSecondaryRateLimit}): ${err}`)
+
       if (!isRetryable || attempt > maxRetries) {
         throw new Error(`${prefix}: ${err instanceof Error ? err.message : err}`)
       }
@@ -303,7 +318,8 @@ export async function fetchRetry(url: URL, init: RequestInit, opt?: RetryOptions
         let delay = (/^\d+$/.test(retryAfter)
           ? Math.max(0, parseInt(retryAfter, 10) * 1000)
           : Math.max(0, new Date(retryAfter).getTime() - Date.now()) + 1000)
-        console.log(styleText(['dim', 'yellow'], `${prefix}: retrying failed (${err}) request after ${delay}ms (retry-after)`))
+        retryLog?.(`${prefix}: retrying failed (${err}) request after ${delay}ms (retry-after)`)
+        debug(`${prefix}: retrying in ${delay}ms (retry-after)`)
         await new Promise(resolve => setTimeout(resolve, delay))
         continue
       }
@@ -311,13 +327,15 @@ export async function fetchRetry(url: URL, init: RequestInit, opt?: RetryOptions
       const rateLimitReset = resp?.headers.get('x-ratelimit-reset')
       if (rateLimitReset) {
         const delay = Math.max(0, parseInt(rateLimitReset) * 1000 - Date.now())
-        console.log(styleText(['dim', 'yellow'], `${prefix}: retrying failed (${err}) request after ${delay}ms (x-ratelimit-reset)`))
+        retryLog?.(`${prefix}: retrying failed (${err}) request after ${delay}ms (x-ratelimit-reset)`)
+        debug(`${prefix}: retrying in ${delay}ms (x-ratelimit-reset)`)
         await new Promise(resolve => setTimeout(resolve, delay))
         continue
       }
 
       const delay = isSecondaryRateLimit ? 60000 : (attempt ** 2) * 1000
-      console.log(styleText(['dim', 'yellow'], `${prefix}: retrying failed (${err}) request after ${delay}ms`))
+      retryLog?.(`${prefix}: retrying failed (${err}) request after ${delay}ms`)
+      debug(`${prefix}: retrying in ${delay}ms`)
       await new Promise(resolve => setTimeout(resolve, delay))
       continue
     }
