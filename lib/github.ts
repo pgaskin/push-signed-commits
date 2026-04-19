@@ -2,9 +2,8 @@ import type { KeyObject } from 'node:crypto'
 import type { OID } from './git.ts'
 import { createSign } from 'node:crypto'
 import { env } from 'node:process'
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { debuglog } from 'node:util'
+import pkg from '../package.json' with { type: 'json' }
 
 const debug = debuglog('github') // NODE_DEBUG=github
 
@@ -19,7 +18,7 @@ export type GitHubGraphqlUrl = string & { __ghgqlapi: true }
 
 export const DefaultGitHubApi = 'https://api.github.com' as GitHubApiUrl
 export const DefaultGitHubGraphql = 'https://api.github.com/graphql' as GitHubGraphqlUrl
-export const DefaultUserAgent = await defaultUserAgent()
+export const DefaultUserAgent = defaultUserAgent()
 
 let userAgent = DefaultUserAgent
 
@@ -28,9 +27,7 @@ export function setUserAgent(ua: string): void {
   userAgent = ua || DefaultUserAgent
 }
 
-async function defaultUserAgent(): Promise<string> {
-  const json = await readFile(join(import.meta.dirname, '..', 'package.json'))
-  const pkg = JSON.parse(json.toString('utf-8'))
+function defaultUserAgent(): string {
   let ua = `${pkg.name}`
   if (pkg.version) {
     ua += `/${pkg.version}`
