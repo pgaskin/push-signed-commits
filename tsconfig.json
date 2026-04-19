@@ -9,6 +9,7 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
     "noEmit": true,
   },
 }
