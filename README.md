@@ -34,7 +34,7 @@ Create verified/signed commits as bots or GitHub Actions.
 
 ```bash
 # with a github token (cli)
-GITHUB_TOKEN=github_pat_xxx npx -y push-signed-commits@v0.1.0 -m 'commit message'
+GITHUB_TOKEN=github_pat_xxx npx -y push-signed-commits@v0.1.0 -m 'commit message' username/repo master
 ```
 
 ```bash
@@ -49,7 +49,9 @@ npm install --save push-signed-commits@v0.1.0
 
 ### Usage
 
-#### Inputs
+#### GitHub Actions
+
+##### Inputs
 
 ```yaml
 - uses: pgaskin/push-signed-commits@v0.1.0
@@ -125,7 +127,7 @@ npm install --save push-signed-commits@v0.1.0
     git-binary: ''
 ```
 
-#### Outputs
+##### Outputs
 
 - `not-pushable`
   Set to true if one or more commits were not pushed (the oid outputs will
@@ -174,6 +176,10 @@ usage: npx -y push-signed-commits@v0.1.0 [options] username/repository target_br
 revision is a commit or range of commits (see man gitrevisions(7))
 if not specified, a commit is created from the staging area
 ```
+
+#### Library
+
+See [`./lib/index.ts`](./lib/index.ts).
 
 ### Examples
 
@@ -297,7 +303,7 @@ try {
     - Symlink update/creation.
     - Submodule update/creation.
     - Non-regular (i.e., executable) file update/creation.
-    - *Note: I've opened a feature request to add support for these types.*
+    - *Note: I've opened a [feature request](https://github.com/orgs/community/discussions/191953) to add support for these types.*
   - Uses git to do the diffing natively and reads directly from the repository rather than the working directory (unlike a few of the similar alternatives).
     - The contents will be correct.
     - The `core.autocrlf` option will be applied consistently (since git does it when adding to the index).
@@ -355,7 +361,7 @@ I made this since the other ones weren't good enough, but here's a list of them 
 - [Asana/push-signed-commits](https://github.com/Asana/push-signed-commits): python, much more complex, doesn't handle some edge cases
 - [grafana/github-api-commit-action](https://github.com/grafana/github-api-commit-action): bash, creates the commit manually instead of taking an existing one, uses the working directory, doesn't handle most edge cases
 - [step-security/github-api-commit-action](https://github.com/step-security/github-api-commit-action): copy of grafana/github-api-commit-action
-- [github/gh-aw push_signed_commits](https://github.com/github/gh-aw/blob/48d4b85d8bceb6aaa346ad415ef4a7128c42078b/actions/setup/js/push_signed_commits.cjs): doesn't handle some edge cases, vibe-coded, very [buggy](https://github.com/github/gh-aw/pull/21576#pullrequestreview-4058718607).
+- [github/gh-aw push_signed_commits](https://github.com/github/gh-aw/blob/48d4b85d8bceb6aaa346ad415ef4a7128c42078b/actions/setup/js/push_signed_commits.cjs): doesn't handle some edge cases, vibe-coded, very [buggy](https://github.com/github/gh-aw/issues/26156).
 - [changesets/ghcommit](https://github.com/changesets/ghcommit): typescript, uses the working directory, doesn't handle most edge cases
 
 As of 2026-04-05, most of them don't support pushing a range of existing commits, most of them use the working copy instead of the repository index, most of the git-based ones can't handle filenames with special characters, and none of them verify that all files in the commit can actually be represented properly with the API.
