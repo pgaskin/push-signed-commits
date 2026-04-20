@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { debuglog } from 'node:util'
+import { jsonify } from '../util/util.ts'
 
 const debug = debuglog('git') // NODE_DEBUG=git
 
@@ -239,19 +240,19 @@ async function parseRawDiff(out: GitOutput): Promise<GitDiffEntry[]> {
   for (const info of out) {
     if (!info.startsWith(':')) {
       // this would only happen if the output was bad or it gave us a rename/copy
-      throw new GitParseError(json`Expected next diff entry, but got ${info}`)
+      throw new GitParseError(jsonify`Expected next diff entry, but got ${info}`)
     }
     const path = out.next()
     if (path.done) {
-      throw new GitParseError(json`Expected path for diff entry ${info}`)
+      throw new GitParseError(jsonify`Expected path for diff entry ${info}`)
     }
     const spl = info.slice(1).split(' ')
     if (spl.length != 5) {
-      throw new GitParseError(json`Invalid diff entry ${info} (bad field count)`)
+      throw new GitParseError(jsonify`Invalid diff entry ${info} (bad field count)`)
     }
     const [src_mode, dst_mode, src_oid, dst_oid, status] = spl
     if (!isOctal(src_mode) || !isOctal(dst_mode)) {
-      throw new GitParseError(json`Invalid diff entry ${info} (invalid mode)`)
+      throw new GitParseError(jsonify`Invalid diff entry ${info} (invalid mode)`)
     }
     parseOID(src_oid)
     parseOID(dst_oid)
@@ -289,7 +290,7 @@ function run<T extends boolean>(raw: T, git: string, dir: string | null, ...args
     child.stderr.on('data', chunk => stderr.push(chunk))
     child.on('error', err => reject(err))
     child.on('close', (code, signal) => {
-      if (code) reject(new Error(json`git ${args}: exit status ${code} (stderr: ${Buffer.concat(stderr).toString('utf-8')})`))
+      if (code) reject(new Error(jsonify`git ${args}: exit status ${code} (stderr: ${Buffer.concat(stderr).toString('utf-8')})`))
       else if (signal) reject(new Error(`git ${args}: killed by signal ${signal} (stderr: ${Buffer.concat(stderr).toString('utf-8')})`))
       let out: any = Buffer.concat(stdout)
       if (!raw) {
@@ -299,7 +300,7 @@ function run<T extends boolean>(raw: T, git: string, dir: string | null, ...args
           while (str.length) {
             const i = str.indexOf(delim)
             if (i == -1) {
-              throw new GitParseError(json`Got garbage ${str} after last ${delim}`)
+              throw new GitParseError(jsonify`Got garbage ${str} after last ${delim}`)
             }
             const it = str.slice(0, i)
             str = str.slice(i + 1)
@@ -330,16 +331,16 @@ const diffStatusSet: Set<string> = new Set(Object.values(diffStatus))
 
 function parseDiffStatus(status: string, path?: string | undefined): asserts status is GitDiffStatus {
   if (!diffStatusSet.has(status)) {
-    throw new GitParseError(json`Invalid diff status ${status}` + (path ? json`for file ${path}` : ''))
+    throw new GitParseError(jsonify`Invalid diff status ${status}` + (path ? jsonify`for file ${path}` : ''))
   }
 }
 
 function parseOID<T extends OID>(oid: string): asserts oid is T {
   if (!isLowerHex(oid)) {
-    throw new GitParseError(json`Invalid OID ${oid}`)
+    throw new GitParseError(jsonify`Invalid OID ${oid}`)
   }
   if (oid.length != 40 && oid.length != 64) {
-    throw new GitParseError(json`Invalid OID ${oid} length ${oid.length}`)
+    throw new GitParseError(jsonify`Invalid OID ${oid} length ${oid.length}`)
   }
 }
 
@@ -446,8 +447,4 @@ export const __test = {
   trimBlankLinesStart,
   trimBlankLinesEnd,
   cutBlankLine,
-}
-
-function json(strings: TemplateStringsArray, ...values: any[]) {
-  return strings.reduce((acc, str, i) => acc + str + (i < values.length ? JSON.stringify(values[i]) : ''), '');
 }

@@ -4,15 +4,19 @@
 
 ```
 lib/
-  git.ts       - git command wrappers
-  git_test.ts  - git fast-import wrapper and utils for tests
-  github.ts    - minimal github api client
-  commit.ts    - creates createCommitOnBranch inputs
-  main.ts      - command implementation
-  index.ts     - library entry point (re-exports/wraps a stable subset of the other files)
-  action.ts    - github actions entry point
-  cli.ts       - cli entry point
-  options.ts   - cli argument parser
+  cmd/
+    action.ts  - github actions entry point
+    cli.ts     - cli entry point
+    main.ts    - command implementation
+  core/
+    git.ts     - git command wrappers
+    github.ts  - minimal github api client
+    commit.ts  - creates createCommitOnBranch inputs
+  util/
+    gha.ts     - implements a subset of @actions/core
+    gittest.ts - git fast-import wrapper and utils for tests
+    options.ts - minimal gnu-style type-safe cli argument parser
+  index.ts     - stable subset of core/ for use as a library
 scripts/
   release.ts   - updates versions and documentation for releases
 ```
@@ -30,6 +34,10 @@ You should develop and test on the latest minor release of the oldest supported 
 The `npm run build` script is only necessary when publishing the package since node v22.18.0+ natively supports erasable typescript for files not in `node_modules`.
 
 Don't commit the result of `npm run release` since it'll automatically get run when doing a release so the readme refers to the latest version.
+
+All process/platform-related code should be in `cmd/action.ts`, `cmd/main.ts`. Stuff needed for GitHub Actions can also go in`util/gha.ts`. If-wrapped global env stuff can go in `util/util.ts`.
+
+Nothing should write to console/stdout/stderr except for `cmd/main.ts` via the `log` function passed to it and the `main` function in `cmd/action.ts` and `cmd/main.ts`.
 
 The `npm run cli` script is useful for development since it doesn't require `npm run build`.
 

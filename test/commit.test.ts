@@ -1,8 +1,8 @@
 import { deepStrictEqual, ok, rejects } from 'node:assert'
 import { describe, it } from 'node:test'
-import { dummy, repoSuite } from './git_test.ts'
-import * as git from './git.ts'
-import * as commit from './commit.ts'
+import { dummy, repoSuite } from '../lib/util/gittest.ts'
+import { type GitDiffEntry, peeledRev, repo as gitRepo } from '../lib/core/git.ts'
+import * as commit from '../lib/core/commit.ts'
 
 repoSuite('commit', fi => {
   fi.commit('refs/heads/target', 999_999_999, 'target\n', [], [{ path: '.keep', content: '' }])
@@ -20,17 +20,17 @@ repoSuite('commit', fi => {
   const sym1 = fi.commit('refs/heads/symlink', 1_000_000_010, 'add symlink\n', [c1], [{ path: 'link.txt', symlink: 'target.txt' }])
   fi.commit('refs/heads/symlink', 1_000_000_011, 'delete symlink\n', [sym1], [{ path: 'link.txt' }])
 }, tr => {
-  const c1 = tr.revParse(git.peeledRev('main~4', 'commit'))
-  const c2 = tr.revParse(git.peeledRev('main~3', 'commit'))
-  const c3 = tr.revParse(git.peeledRev('main~2', 'commit'))
-  const c4 = tr.revParse(git.peeledRev('main~1', 'commit'))
-  const c5 = tr.revParse(git.peeledRev('main', 'commit'))
-  const e1 = tr.revParse(git.peeledRev('everything~3', 'commit'))
-  const e2 = tr.revParse(git.peeledRev('everything~2', 'commit'))
-  const e3 = tr.revParse(git.peeledRev('everything~1', 'commit'))
-  const e4 = tr.revParse(git.peeledRev('everything', 'commit'))
-  const s1 = tr.revParse(git.peeledRev('symlink~1', 'commit'))
-  const s2 = tr.revParse(git.peeledRev('symlink', 'commit'))
+  const c1 = tr.revParse(peeledRev('main~4', 'commit'))
+  const c2 = tr.revParse(peeledRev('main~3', 'commit'))
+  const c3 = tr.revParse(peeledRev('main~2', 'commit'))
+  const c4 = tr.revParse(peeledRev('main~1', 'commit'))
+  const c5 = tr.revParse(peeledRev('main', 'commit'))
+  const e1 = tr.revParse(peeledRev('everything~3', 'commit'))
+  const e2 = tr.revParse(peeledRev('everything~2', 'commit'))
+  const e3 = tr.revParse(peeledRev('everything~1', 'commit'))
+  const e4 = tr.revParse(peeledRev('everything', 'commit'))
+  const s1 = tr.revParse(peeledRev('symlink~1', 'commit'))
+  const s2 = tr.revParse(peeledRev('symlink', 'commit'))
 
   tr.writeFile('staged', 'foo')
   tr.writeFile('unstaged', 'bar')
@@ -47,7 +47,7 @@ repoSuite('commit', fi => {
     })
   }
 
-  function diffEntryFor(diff: git.GitDiffEntry[], path: string) {
+  function diffEntryFor(diff: GitDiffEntry[], path: string) {
     const entry = diff.find((d) => d.path === path)
     if (!entry) throw new Error(`Missing expected diff entry ${JSON.stringify(path)}`)
     return entry
@@ -55,7 +55,7 @@ repoSuite('commit', fi => {
 
   describe('changes', () => {
     it('rejects updating executable file', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c1, c4)
       await rejectsNotPushable(async () => {
         await commit.changes(repo, [diffEntryFor(diff, 'script.sh')], c4)
@@ -63,7 +63,7 @@ repoSuite('commit', fi => {
     })
 
     it('does not reject deleting executable file', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c4, c1)
       const { additions, deletions } = await commit.changes(repo, [diffEntryFor(diff, 'script.sh')], c4)
       deepStrictEqual(additions, [])
@@ -73,7 +73,7 @@ repoSuite('commit', fi => {
     })
 
     it('rejects updating submodule', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c1, c5)
       await rejectsNotPushable(async () => {
         await commit.changes(repo, [diffEntryFor(diff, 'submodule')], c5)
@@ -81,7 +81,7 @@ repoSuite('commit', fi => {
     })
 
     it('does not reject deleting submodule', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c5, c1)
       const { additions, deletions } = await commit.changes(repo, [diffEntryFor(diff, 'submodule')], c5)
       deepStrictEqual(additions, [])
@@ -91,7 +91,7 @@ repoSuite('commit', fi => {
     })
 
     it('rejects updating symlink', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c1, s1)
       await rejectsNotPushable(async () => {
         await commit.changes(repo, [diffEntryFor(diff, 'link.txt')], s1)
@@ -99,7 +99,7 @@ repoSuite('commit', fi => {
     })
 
     it('does not reject deleting symlink', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(s1, s2)
       const { additions, deletions } = await commit.changes(repo, [diffEntryFor(diff, 'link.txt')], s2)
       deepStrictEqual(additions, [])
@@ -109,7 +109,7 @@ repoSuite('commit', fi => {
     })
 
     it('handles file additions', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c1, c2)
       const { additions, deletions } = await commit.changes(repo, diff)
       deepStrictEqual(additions.toSorted((a, b) => a.path.localeCompare(b.path)), [
@@ -120,7 +120,7 @@ repoSuite('commit', fi => {
     })
 
     it('handles file deletions', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c2, c1)
       const { additions, deletions } = await commit.changes(repo, diff)
       deepStrictEqual(additions, [])
@@ -131,7 +131,7 @@ repoSuite('commit', fi => {
     })
 
     it('handles subdirectories', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c2, c3)
       const { additions, deletions } = await commit.changes(repo, diff)
       deepStrictEqual(additions, [
@@ -143,7 +143,7 @@ repoSuite('commit', fi => {
 
   describe('staged', () => {
     it('creates commit from staged changes', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       deepStrictEqual(await commit.staged(repo, 'subject\nmore subject\n\nbody\nmore body\n\nanother body'), {
         input: {
           message: {
@@ -168,7 +168,7 @@ repoSuite('commit', fi => {
 
   describe('commits', () => {
     it('rejects root commit', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       await rejectsNotPushable(async () => {
         for await (const c of commit.commits(repo, 'single')) {
           console.debug(c)
@@ -177,7 +177,7 @@ repoSuite('commit', fi => {
     })
 
     it('rejects merge commit', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       await rejectsNotPushable(async () => {
         for await (const c of commit.commits(repo, 'merge')) {
           console.debug(c)
@@ -186,12 +186,12 @@ repoSuite('commit', fi => {
     })
 
     it('handles empty range', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       deepStrictEqual(await Array.fromAsync(commit.commits(repo, 'main..main')), [])
     })
 
     it('returns the commit oids', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       const locals = []
       for await (const c of commit.commits(repo, `${c1}..${c2}`)) {
         locals.push(c.local)
@@ -200,7 +200,7 @@ repoSuite('commit', fi => {
     })
 
     it('creates commits from existing commits', async () => {
-      const repo = await git.repo('git', tr.path)
+      const repo = await gitRepo('git', tr.path)
       const commits = await Array.fromAsync(commit.commits(repo, `${e1}..${e4}`))
       deepStrictEqual(commits, [{
         input: {

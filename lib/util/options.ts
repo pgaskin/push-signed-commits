@@ -1,5 +1,3 @@
-import { argv as procArgv, env as procEnv } from 'node:process'
-
 // TODO: maybe make this a standalone library (I was originally going to do the
 // arg parsing ad-hoc, but kept refactoring it since it was fun and ended up
 // making a relatively generic solution...)?
@@ -140,8 +138,8 @@ export function parseDefaultOptions<T extends Options>(opts: T): ParsedOptions<T
  */
 export function parseOptions<T extends Options>(
   opts: T,
-  argv: string[] = procArgv.slice(2),
-  env: { [key: string]: string | undefined } = procEnv,
+  argv: string[],
+  env: Record<string, string | undefined>,
 ): {
   opts: ParsedOptions<T>,
   args: string[]
@@ -273,7 +271,7 @@ export function parseOptions<T extends Options>(
 }
 
 /** Generate help text for opts. */
-export function help(opts: Options): string {
+export function help(opts: Options, eol: string = '\n'): string {
   parseDefaultOptions(opts) // validate
   const rows: [string, string][] = []
   for (const opt of Object.values(opts)) {
@@ -298,5 +296,5 @@ export function help(opts: Options): string {
     }
   }
   const width = rows.reduce((m, [l]) => Math.max(m, l.length), 0)
-  return rows.map(([l, h]) => `  ${l.padEnd(width)}  ${h}`).join('\n')
+  return rows.map(([l, h]) => `  ${l.padEnd(width)}  ${h}`).join(eol)
 }

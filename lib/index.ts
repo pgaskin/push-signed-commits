@@ -1,7 +1,7 @@
-import { type Commit, staged as staged_, commits as commits_ } from './commit.ts'
-import { repo as repo_ } from './git.ts'
-import type { CreateCommitOnBranchInput, GitHubGraphqlUrl, GitHubToken, GitObjectID } from './github.ts'
-import { createCommitOnBranch as createCommitOnBranch_ } from './github.ts'
+import { type Commit, staged as staged_, commits as commits_ } from './core/commit.ts'
+import { repo as repo_ } from './core/git.ts'
+import type { CreateCommitOnBranchInput, GitHubGraphqlUrl, GitHubToken, GitObjectID } from './core/github.ts'
+import { createCommitOnBranch as createCommitOnBranch_ } from './core/github.ts'
 
 // note: only stuff exported from this file is part of the stable api
 
@@ -17,15 +17,15 @@ export type {
   FileChanges,
   FileAddition,
   FileDeletion,
-} from "./github.ts"
+} from "./core/github.ts"
 
 export type {
   Commit,
-} from './commit.ts'
+} from './core/commit.ts'
 
 export {
   NotPushableError,
-} from './commit.ts'
+} from './core/commit.ts'
 
 /**
  * Create a commit from staged changes.

@@ -1,6 +1,6 @@
 import { strictEqual, ok, rejects } from 'node:assert'
 import { describe, it, mock } from 'node:test'
-import * as github from './github.ts'
+import * as github from '../lib/core/github.ts'
 
 describe('fetchRetry', () => {
   const url = new URL('https://api.github.test/fake')

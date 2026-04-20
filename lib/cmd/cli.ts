@@ -1,18 +1,61 @@
 #!/usr/bin/env node
 import { Console } from 'node:console'
 import { EOL } from 'node:os'
-import { exit, stderr } from 'node:process'
 import { styleText } from 'node:util'
 import {
   type GitHubToken,
   type GitHubApiUrl, DefaultGitHubApi,
   type GitHubGraphqlUrl, DefaultGitHubGraphql,
   DefaultUserAgent, setRetryLog,
-} from './github.ts'
-import { main, parseInteger, parsePrivateKey, validateBaseUrl } from './main.ts'
-import { type Options, OptionError, parseOptions, help } from './options.ts'
+} from '../core/github.ts'
+import { OptionError, parseOptions, help } from '../util/options.ts'
+import {
+  type Input, main as main_,
+  parseInteger, parsePrivateKey, validateBaseUrl,
+} from './main.ts'
 
-export const options = {
+/** Invalid positional arguments. */
+export class ArgumentError extends Error {
+  readonly help: boolean
+  constructor(help: boolean) {
+    super('Invalid argument')
+    this.name = 'ArgumentError'
+    this.help = help
+  }
+}
+
+/** CLI entry point. */
+export async function main(opts: {
+  cmd: string,
+  env: NodeJS.ProcessEnv,
+  argv: string[],
+  stderr: NodeJS.WriteStream,
+}): Promise<number> {
+  let opt
+  try {
+    opt = inputs(opts.env, opts.argv)
+  } catch (err) {
+    if (err instanceof OptionError) {
+      opts.stderr.write(`error: ${err.message}${EOL}`)
+      return 2
+    }
+    if (err instanceof ArgumentError) {
+      opts.stderr.write(usage(opts.cmd, EOL).replaceAll('\n', EOL) + EOL)
+      return err.help ? 0 : 2
+    }
+    throw err
+  }
+  const console = new Console({
+    stdout: opts.stderr,
+    stderr: opts.stderr,
+    colorMode: 'auto',
+  })
+  const log = (msg?: string) => msg ? console.log(msg) : console.log()
+  setRetryLog(msg => log(styleText(['dim', 'yellow'], msg)))
+  return await main_(log, opt)
+}
+
+const spec = {
   allowEmpty: { type: 'bool', long: 'allow-empty', help: 'create en empty commit even if there are no changes' }, // matches git-commit
   commitMessage: { type: 'str', kind: 'message', short: 'm', long: 'message', help: 'commit message to use if creating a new commit from the staging area' }, // matches git-commit
   commitMessageFile: { type: 'str', kind: 'path', short: 'F', long: 'file', help: 'read the commit message from the specified (overrides --message)', parse: p => p || null }, // matches git-commit
@@ -27,47 +70,42 @@ export const options = {
   git: { type: 'str', kind: 'cmd', long: 'git', help: 'the git executable to use', default: 'git' },
   help: { type: 'bool', short: 'h', long: 'help', help: 'show this help text' },
   path: { type: 'str', kind: 'path', short: 'C', help: 'repository path', default: '.' }, // matches git-commit, most tools
-} as const satisfies Options
+} as const satisfies Parameters<typeof parseOptions>[0]
 
-export function usage(cmd: string = 'push-signed-commits'): string {
+/** Get the help text. */
+export function usage(cmd: string, eol: string = '\n'): string {
   return [
     `usage: ${cmd} [options] username/repository target_branch [revision]`,
     ``,
-    help(options),
+    help(spec, eol),
     ``,
     `revision is a commit or range of commits (see man gitrevisions(7))`,
     `if not specified, a commit is created from the staging area`,
-  ].join('\n')
+  ].join(eol)
 }
 
-export function parse() {
-  let opts, args
-  try {
-    ({opts, args} = parseOptions(options))
-  } catch (err) {
-    if (err instanceof OptionError) {
-      stderr.write(`error: ${err.message}${EOL}`)
-      exit(2)
-    }
-    throw err
-  }
+/**
+ * Parse the arguments, throwing an {@link OptionError} or
+ * {@link ArgumentError} if invalid.
+ */
+export function inputs(env: NodeJS.ProcessEnv, argv: string[]): Input {
+  const {opts, args} = parseOptions(spec, argv, env)
   if (opts.help || args.length < 2 || args.length > 3) {
-    stderr.write(usage().replaceAll('\n', EOL) + EOL)
-    exit(opts.help || !args.length ? 0 : 2)
+    throw new ArgumentError(opts.help)
   }
-  const repository = args[0]
-  const branch = args[1]
-  const revision = args.length > 2 ? args[2] : null
-  return {...opts, repository, branch, revision}
+  const pos = {
+    repository: args[0],
+    branch: args[1],
+    revision: args.length > 2 ? args[2] : null,
+  }
+  return {...opts, ...pos}
 }
 
 if (import.meta.main) {
-  const console = new Console({
-    stdout: stderr,
-    stderr: stderr,
-    colorMode: true,
-  })
-  const println = (msg?: string) => msg ? console.log(msg) : console.log()
-  setRetryLog(msg => println(styleText(['dim', 'yellow'], msg)))
-  exit(await main(println, parse()))
+  process.exit(await main({
+    cmd: process.argv0.startsWith('node') ? process.argv.slice(0, 2).join(' ') : process.argv0,
+    env: process.env,
+    argv: process.argv.slice(2),
+    stderr: process.stderr,
+  }))
 }

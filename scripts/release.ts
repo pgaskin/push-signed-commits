@@ -1,7 +1,8 @@
 #!/usr/bin/env node
+delete process.env['ACTIONS_ORCHESTRATION_ID'] // so it doesn't pollute the help text
 import { readFileSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
-import { usage } from '../lib/cli.ts'
+import { usage } from '../lib/cmd/cli.ts'
 
 console.log(`Parsing package.json`)
 const obj = JSON.parse(readFileSync('package.json', 'utf-8'))
@@ -74,7 +75,7 @@ readme = readme.replace(/(#### Outputs\n\n)([\s\S]*?)(\n#### )/, `$1${[
     ...v.lines.map(l => '  ' + l),
   ].join('\n')),
 ].join('\n\n').replaceAll('$', '$$')}\n$3`)
-readme = readme.replace(/(#### CLI\n\n)```\n[\s\S]*?```/, `$1\`\`\`\n${usage(`npx -y ${obj.name}@${version}`).trimEnd().replaceAll('$', '$$')}\n\`\`\``)
+readme = readme.replace(/(#### CLI\n\n)```\n[\s\S]*?```/, `$1\`\`\`\n${usage(`npx -y ${obj.name}@${version}`, '\n').trimEnd().replaceAll('$', '$$')}\n\`\`\``)
 writeFileSync('README.md', readme)
 
 console.log("Updating package.json version")

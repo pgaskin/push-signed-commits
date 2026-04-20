@@ -28,7 +28,7 @@
     "build": "tsc -p tsconfig.lib.json",
     "test": "node --test --experimental-test-coverage",
     "release": "node scripts/release.ts",
-    "cli": "node lib/cli.ts"
+    "cli": "node lib/cmd/cli.ts"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",

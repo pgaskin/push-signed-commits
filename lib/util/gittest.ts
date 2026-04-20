@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync, realpathSync } from 'nod
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { suite, after } from 'node:test'
-import * as git from './git.ts'
+import * as git from '../core/git.ts'
 
 export type FastImportFile =
   | { path: string, content: string, exec?: boolean }

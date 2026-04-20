@@ -2,8 +2,8 @@ import { equal, deepStrictEqual, ok, rejects, strictEqual } from 'node:assert'
 import { realpathSync } from 'node:fs'
 import { join, normalize, isAbsolute } from 'node:path'
 import { suite, describe, it } from 'node:test'
-import { repoSuite, dummy } from './git_test.ts'
-import * as git from './git.ts'
+import { repoSuite, dummy } from '../lib/util/gittest.ts'
+import * as git from '../lib/core/git.ts'
 
 suite('git', () => {
   describe('splitCommitMessage', () => {

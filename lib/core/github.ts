@@ -1,8 +1,7 @@
 import { type KeyObject, createSign } from 'node:crypto'
-import { env } from 'node:process'
 import { debuglog } from 'node:util'
-import { type OID } from './git.ts'
-import pkg from '../package.json' with { type: 'json' }
+import type { OID } from './git.ts'
+import { defaultUserAgent, jsonify } from '../util/util.ts'
 
 const debug = debuglog('github') // NODE_DEBUG=github
 
@@ -24,20 +23,6 @@ let userAgent = DefaultUserAgent
 /** Sets the user agent used for requests. */
 export function setUserAgent(ua: string): void {
   userAgent = ua || DefaultUserAgent
-}
-
-function defaultUserAgent(): string {
-  let ua = `${pkg.name}`
-  if (pkg.version) {
-    ua += `/${pkg.version}`
-  }
-
-  const orch = env['ACTIONS_ORCHESTRATION_ID']
-  if (orch) {
-    ua += ` actions_orchestration_id/${orch.replace(/[^a-z0-9_.-]/gi, '_')}`
-  }
-
-  return ua
 }
 
 /** Creates a signed GitHub App JWT. */
@@ -65,13 +50,13 @@ export function appJwt(appId: number, rsaKey: KeyObject): GitHubToken {
 export async function getRepoInstallation(gh: GitHubApiUrl, jwt: GitHubToken, repo: string): Promise<number> {
   const [resp, text] = await request(gh, jwt, 'GET', `repos/${repo}/installation`)
   if (resp.status !== 200) {
-    throw new Error(json`Response status ${resp.status} (body: ${text})`)
+    throw new Error(jsonify`Response status ${resp.status} (body: ${text})`)
   }
   const obj = JSON.parse(text) as {
     id: number,
   }
   if (typeof obj?.id !== 'number') {
-    throw new Error(json`Response missing installation id`)
+    throw new Error(jsonify`Response missing installation id`)
   }
   return obj.id
 }
@@ -85,7 +70,7 @@ export async function createInstallationToken(gh: GitHubApiUrl, jwt: GitHubToken
     },
   })
   if (resp.status !== 201) {
-    throw new Error(json`Response status ${resp.status} (body: ${text})`)
+    throw new Error(jsonify`Response status ${resp.status} (body: ${text})`)
   }
   const obj = JSON.parse(text) as {
     token: string,
@@ -94,7 +79,7 @@ export async function createInstallationToken(gh: GitHubApiUrl, jwt: GitHubToken
     },
   }
   if (typeof obj?.token !== 'string') {
-    throw new Error(json`Response missing token`)
+    throw new Error(jsonify`Response missing token`)
   }
   if (obj?.permissions?.contents !== 'write') {
     throw new Error('Installation does not have contents:write access')
@@ -106,7 +91,7 @@ export async function createInstallationToken(gh: GitHubApiUrl, jwt: GitHubToken
 export async function revokeInstallationToken(gh: GitHubApiUrl, token: GitHubToken): Promise<void> {
   const [resp, text] = await request(gh, token, 'DELETE', 'installation/token')
   if (resp.status !== 204) {
-    throw new Error(json`Response status ${resp.status} (body: ${text})`)
+    throw new Error(jsonify`Response status ${resp.status} (body: ${text})`)
   }
 }
 
@@ -217,9 +202,9 @@ export async function createCommitOnBranch(gh: GitHubGraphqlUrl, token: GitHubTo
   const mt = resp.headers.get('Content-Type') ?? ''
   if (!mt.startsWith('application/json')) {
     if (resp.status !== 200) {
-      throw new Error(json`Response status ${resp.status} (body: ${text})`)
+      throw new Error(jsonify`Response status ${resp.status} (body: ${text})`)
     }
-    throw new Error(json`Incorrect response type ${mt}`)
+    throw new Error(jsonify`Incorrect response type ${mt}`)
   }
 
   const obj = JSON.parse(text) as {
@@ -249,7 +234,7 @@ export async function createCommitOnBranch(gh: GitHubGraphqlUrl, token: GitHubTo
     throw new Error(`GitHub GraphQL mutation failed:\n${msg}`)
   }
   if (!obj?.data?.createCommitOnBranch?.commit?.oid) {
-    throw new Error(json`GitHub created the commit but didn't return the oid`)
+    throw new Error(jsonify`GitHub created the commit but didn't return the oid`)
   }
   return obj?.data?.createCommitOnBranch?.commit?.oid
 }
@@ -290,15 +275,15 @@ export async function fetchRetry(url: URL, init: RequestInit, opt?: RetryOptions
         if (text.includes('secondary rate')) { // like @octokit/plugin-throttling
           isRetryable = true
           isSecondaryRateLimit = true
-          throw new Error(json`hit secondary rate limit (body: ${text})`)
+          throw new Error(jsonify`hit secondary rate limit (body: ${text})`)
         }
         if (!doNotRetry.has(resp.status)) { // like @octokit/plugin-retry
           isRetryable = true
         }
         if (resp.headers.get('x-ratelimit-remaining') == '0' && (resp.status == 403 || resp.status == 429)) {
-          throw new Error(json`hit rate limit (body: ${text})`)
+          throw new Error(jsonify`hit rate limit (body: ${text})`)
         }
-        throw new Error((isRetryable ? `` : `non-retryable `) + json`reponse status ${resp.status} (body: ${text})`)
+        throw new Error((isRetryable ? `` : `non-retryable `) + jsonify`reponse status ${resp.status} (body: ${text})`)
       }
 
       return [resp, text] as const
@@ -352,8 +337,4 @@ function throttle(interval: number): () => Promise<void> {
     }
     last = Date.now()
   }
-}
-
-function json(strings: TemplateStringsArray, ...values: any[]) {
-  return strings.reduce((acc, str, i) => acc + str + (i < values.length ? JSON.stringify(values[i]) : ''), '');
 }
