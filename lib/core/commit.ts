@@ -6,6 +6,9 @@ import {
   type CreateCommitOnBranchInput, type FileChanges,
   encodeBase64,
 } from "./github.ts"
+import { debuglog, jsonify } from '../util/util.ts'
+
+const debug = debuglog('commit') // NODE_DEBUG=commit
 
 export class NotPushableError extends Error {
   public commit: CommitOID | undefined
@@ -27,8 +30,11 @@ export interface Commit {
 export async function staged(repo: Repo, message: string): Promise<Commit> {
   const parent = await repo.head()
   const files = await repo.diffStaged(parent)
+  debug(`staged: ${files.length}`)
 
   const { subject, body } = splitCommitMessage(message)
+  debug(jsonify`msg: subject=${subject} body=${body}`)
+
   const { additions, deletions } = await changes(repo, files)
 
   return {
@@ -49,6 +55,7 @@ export async function staged(repo: Repo, message: string): Promise<Commit> {
 
 export async function* commits(repo: Repo, revision: string): AsyncGenerator<Commit> {
   for (const [commit, parents] of await repo.commits(revision)) {
+    debug(`commit: ${commit.slice(0, 12)} parents=${parents.map(x => x.slice(0, 12)).join(',')}`)
     switch (parents.length) {
       case 0:
         throw new NotPushableError(commit, `has no parents (creating a new branch is not supported)`)
@@ -61,6 +68,7 @@ export async function* commits(repo: Repo, revision: string): AsyncGenerator<Com
 
     const message = await repo.message(commit)
     const { subject, body } = splitCommitMessage(message)
+    debug(jsonify`msg: subject=${subject} body=${body}`)
 
     const files = await repo.diffTrees(parent, commit)
     const { additions, deletions } = await changes(repo, files, commit)
@@ -86,6 +94,15 @@ export async function changes(repo: Repo, diff: GitDiffEntry[], commit?: CommitO
   const additions = []
   const deletions = []
   for (const file of diff) {
+    debug([
+      `diff:`,
+      `${repo.gitDir.replace(/\/\.git$/, '')}@${commit?.slice(0, 10) || 'staged'}`,
+      `{${file.src_oid.slice(0, 12)}:${file.src_mode.toString(8)}`,
+      `->`,
+      `${file.dst_oid.slice(0, 12)}:${file.dst_mode.toString(8)}}`,
+      `${Object.entries(diffStatus).find(x => x[1] == file.status)?.[0] ?? file.status}`,
+      `${JSON.stringify(file.path)}`,
+    ].join(' '))
     switch (file.status) {
       case diffStatus.added:
       case diffStatus.modified:
