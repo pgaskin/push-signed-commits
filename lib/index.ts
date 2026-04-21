@@ -1,31 +1,11 @@
 import { type Commit, staged as staged_, commits as commits_ } from './core/commit.ts'
-import { repo as repo_ } from './core/git.ts'
-import type { CreateCommitOnBranchInput, GitHubGraphqlUrl, GitHubToken, GitObjectID } from './core/github.ts'
+import { type CommitOID, repo as repo_ } from './core/git.ts'
+import type { CreateCommitOnBranchInput, GitHubGraphqlUrl, GitHubToken } from './core/github.ts'
 import { createCommitOnBranch as createCommitOnBranch_, withRetries as withMaxRetries, withUserAgent } from './core/github.ts'
 
 // note: only stuff exported from this file is part of the stable api
 
-/**
- * GitHub createCommitOnBranch GraphQL mutation types.
- */
-export type {
-  GitObjectID,
-  Base64String,
-  CreateCommitOnBranchInput,
-  CommittableBranch,
-  CommitMessage,
-  FileChanges,
-  FileAddition,
-  FileDeletion,
-} from "./core/github.ts"
-
-export type {
-  Commit,
-} from './core/commit.ts'
-
-export {
-  NotPushableError,
-} from './core/commit.ts'
+export { NotPushableError } from './core/commit.ts'
 
 /**
  * Create a commit from staged changes.
@@ -65,7 +45,7 @@ export interface CreateCommitOnBranchOptions {
  * @param token GitHub token with contents:write permissions.
  * @param input Input for the createCommitOnBranch mutation.
  */
-export async function createCommitOnBranch(url: string, token: string, input: CreateCommitOnBranchInput, options?: CreateCommitOnBranchOptions): Promise<GitObjectID> {
+export async function createCommitOnBranch(url: string, token: string, input: CreateCommitOnBranchInput, options?: CreateCommitOnBranchOptions): Promise<CommitOID> {
   let tok = String(token) as GitHubToken
   if (options?.maxRetries != undefined) {
     tok = withMaxRetries(tok, options?.maxRetries)
@@ -73,5 +53,5 @@ export async function createCommitOnBranch(url: string, token: string, input: Cr
   if (options?.userAgent != undefined) {
     tok = withUserAgent(tok, options?.userAgent)
   }
-  return createCommitOnBranch_(url as GitHubGraphqlUrl, tok, input)
+  return await createCommitOnBranch_(url as GitHubGraphqlUrl, tok, input) as CommitOID
 }
