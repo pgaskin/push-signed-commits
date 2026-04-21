@@ -53,6 +53,8 @@ npm install --save push-signed-commits@v1.0.2
 
 ##### Inputs
 
+<!--{inputs}-->
+
 ```yaml
 - uses: pgaskin/push-signed-commits@v1.0.2
   with:
@@ -127,7 +129,11 @@ npm install --save push-signed-commits@v1.0.2
     git-binary: ''
 ```
 
+<!--{/inputs}-->
+
 ##### Outputs
+
+<!--{outputs}-->
 
 - `not-pushable` \
   Set to true if one or more commits were not pushed (the oid outputs will
@@ -153,7 +159,11 @@ npm install --save push-signed-commits@v1.0.2
   ones in commit-oids. Not set if creating a new commit from the staging
   area. Still set if 'dry-run'.
 
+<!--{/outputs}-->
+
 #### CLI
+
+<!--{cli}-->
 
 ```
 usage: npx -y push-signed-commits@v1.0.2 [options] username/repository target_branch [revision]
@@ -176,6 +186,8 @@ usage: npx -y push-signed-commits@v1.0.2 [options] username/repository target_br
 revision is a commit or range of commits (see man gitrevisions(7))
 if not specified, a commit is created from the staging area
 ```
+
+<!--{/cli}-->
 
 #### Library
 
