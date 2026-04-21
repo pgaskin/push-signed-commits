@@ -24,12 +24,15 @@ export class NotPushableError extends Error {
   }
 }
 
-/** A pending commit. The committer/author/date is not included. */
+/**
+ * A pending commit. The committer/author/date/signature is not included. Merge
+ * commits are not supported. All other parts of a commit are supported.
+ */
 export interface Commit {
   /** The local commit hash, or undefined if from staged changes. */
   oid?: CommitOID,
-  /** Parents of the commit. Empty for the initial commit of a branch. */
-  parents: CommitOID[],
+  /** Parent of the commit, or undefined if it is the root commit. */
+  parent?: CommitOID,
   /** Raw commit message. */
   message: string,
   /** All modified files in the commit. */
@@ -51,7 +54,7 @@ export async function staged(repo: Repo, message: string): Promise<Commit> {
   const diff = await repo.diffStaged(parent)
   debug(`staged: ${parent} +/- ${diff.length}`)
   return {
-    parents: [parent],
+    parent,
     message,
     changes: await changes(repo, diff),
   }
@@ -59,16 +62,23 @@ export async function staged(repo: Repo, message: string): Promise<Commit> {
 
 export async function* commits(repo: Repo, revision: string): AsyncGenerator<Commit & { oid: CommitOID }> {
   for (const [commit, parents] of await repo.commits(revision)) {
-    const parent = parents.length ? parents[0] : await repo.emptyTree()
+    if (parents.length > 1) {
+      throw new NotPushableError(commit, `has multiple parents (merge commits are not supported)`)
+    }
+    const parent = parents.length ? parents[0] : undefined
     const message = await repo.message(commit)
-    const diff = await repo.diffTrees(parent, commit)
+    const diff = await repo.diffTrees(parent ?? await repo.emptyTree(), commit)
     debug(`commit: ${commit.slice(0, 12)}^{${parents.map(x => x.slice(0, 12)).join(',')}} +/- ${diff.length}`)
-    yield {
+    const obj = {
       oid: commit,
-      parents,
+      parent,
       message,
       changes: await changes(repo, diff),
     }
+    if (!parent) {
+      delete obj.parent
+    }
+    yield obj
   }
 }
 
@@ -140,7 +150,7 @@ export async function createTreeInput(commit: Commit, blobs: readonly BlobOID[],
 export async function createCommitInput(commit: Commit, tree: TreeOID): Promise<CreateCommitInput> {
   return {
     message: commit.message,
-    parents: commit.parents,
+    parents: commit.parent ? [commit.parent] : [],
     tree,
   }
 }
@@ -151,13 +161,10 @@ export async function createCommitInput(commit: Commit, tree: TreeOID): Promise<
  * {@link NotPushableError} if it contains something not supported.
  */
 export async function createCommitOnBranchInput(repo: Repo, commit: Commit): Promise<Omit<CreateCommitOnBranchInput, 'branch'>> {
-  if (commit.parents.length < 1) {
+  if (!commit.parent) {
     throw new NotPushableError(commit.oid, `has no parents (creating a new branch is not supported)`)
   }
-  if (commit.parents.length > 1) {
-    throw new NotPushableError(commit.oid, `has multiple parents (merge commits are not supported)`)
-  }
-  const parent = commit.parents[0]
+  const parent = commit.parent
 
   const { subject, body } = splitCommitMessage(commit.message)
   debug(jsonify`msg: subject=${subject} body=${body}`)

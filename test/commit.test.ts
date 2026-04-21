@@ -58,7 +58,7 @@ repoSuite('commit', fi => {
       const input = await commit.createCommitOnBranchInput(repo, {
         message: 'fake\n\nbody',
         changes: await commit.changes(repo, path ? [diffEntryFor(diff, path)] : diff),
-        parents: ['dummy' as CommitOID],
+        parent: 'dummy' as CommitOID,
       })
       strictEqual(input.expectedHeadOid, 'dummy')
       strictEqual(input.message.headline, 'fake')
@@ -175,7 +175,7 @@ repoSuite('commit', fi => {
     it('creates commit from staged changes', async () => {
       const repo = await gitRepo('git', tr.path)
       deepStrictEqual(await commit.staged(repo, 'subject\nmore subject\n\nbody\nmore body\n\nanother body'), {
-        parents: [c5],
+        parent: c5,
         message: 'subject\nmore subject\n\nbody\nmore body\n\nanother body',
         changes: [
           { mode: 33188, oid: '19102815663d23f8b75a47e7a01965dcdc96468c', path: 'staged' },
@@ -205,10 +205,18 @@ repoSuite('commit', fi => {
       const repo = await gitRepo('git', tr.path)
       deepStrictEqual(await Array.fromAsync(commit.commits(repo, e1)), [{
         oid: e1,
-        parents: [],
         message: 'initial commit\n',
         changes: [],
       }])
+    })
+
+    it('rejects merge commit', async () => {
+      const repo = await gitRepo('git', tr.path)
+      await rejectsNotPushable(async () => {
+        for await (const c of commit.commits(repo, 'merge')) {
+          console.debug(c)
+        }
+      })
     })
 
     it('creates commits from existing commits', async () => {
@@ -217,7 +225,7 @@ repoSuite('commit', fi => {
       deepStrictEqual(commits, [
         {
           oid: e2,
-          parents: [e1],
+          parent: e1,
           message: 'test commit\n\ntest',
           changes: [
             { mode: 33188, oid: 'd95f3ad14dee633a758d2e331151e950dd13e4ed', path: 'file.txt' },
@@ -226,7 +234,7 @@ repoSuite('commit', fi => {
         },
         {
           oid: e3,
-          parents: [e2],
+          parent: e2,
           message: '\nanother commit\n\n',
           changes: [
             { mode: 0, path: 'file.txt' },
@@ -235,7 +243,7 @@ repoSuite('commit', fi => {
         },
         {
           oid: e4,
-          parents: [e3],
+          parent: e3,
           message: 'test commit\n\ntest',
           changes: [
             { mode: 33188, oid: '6c629dadd05e98aef7f0dc87d2cb926be807f836', path: 'file.txt' },
