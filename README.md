@@ -2,17 +2,6 @@
 
 Create verified/signed commits as bots or GitHub Actions.
 
-- Zero dependencies, cross-platform.
-- Tested on Windows/macOS/Linux.
-- Available as a GitHub Action, standalone CLI, or library.
-- Uses an existing commit, a range of commits, or a new commit with staged changes.
-- Commits will be authored by the owner of the token.
-- Commits will be signed and committed by GitHub.
-- Preserves the full commit message, but resets the committed/authored date.
-- The new commits are not pulled automatically, but you can get the hash from the outputs.
-- Rejects commits containing content not supported by the [`createCommitOnBranch`](https://docs.github.com/en/graphql/reference/mutations#createcommitonbranch) mutation including executable files, symlinks, gitlinks, merge commits.
-- Not vibe-coded.
-
 ### Quick Start
 
 ```yaml
@@ -48,6 +37,63 @@ APP_PRIVATE_KEY="$(< private.pem)" npx -y push-signed-commits@v1.0.2 -C other-re
 # as a library
 npm install --save push-signed-commits@v1.0.2
 ```
+
+### Features
+
+
+This tool is cross-platform and available as a:
+- [GitHub Action](https://github.com/marketplace/actions/push-signed-commits)
+- [CLI tool](https://github.com/pgaskin/push-signed-commits#cli)
+- [Library](https://www.npmjs.com/package/push-signed-commits)
+
+The only dependencies are git 2.24+ (released on 2019-11-04) and node 24+.
+
+Authentication is done with either:
+- A GitHub Actions token.
+- A GitHub App installation token (it can be automatically created and revoked for you).
+- A personal access token.
+
+Commits can be specified as:
+- A new commit from the staged changes.
+- A single commit.
+- A [range](https://git-scm.com/docs/gitrevisions) of commits.
+
+Commits created with this action:
+- Will have a different commit hash.
+- Will be signed and committed by GitHub with the current time.
+- Will be authored by the owner of the token with the current time.
+- Preserves the original commit message (it will be converted to utf-8 if in a different encoding).
+- Preserves all file content and attributes, including binaries and [unusual](https://git-scm.com/docs/git-config#Documentation/git-config.txt-corequotePath) file names with spaces or special characters.
+
+The [`createCommitOnBranch`](https://docs.github.com/en/graphql/reference/mutations#createcommitonbranch) does not support creating new branches, or creating commits which contain:
+- Extremely large files.
+- Multiple parents (i.e., merge commits).
+- Symbolic links.
+- Submodules.
+- Non-regular (i.e., executable) files.
+
+If the GraphQL mutation fails, this action will attempt to use the REST API instead. The REST API fallback is not supported for non-app/actions tokens because GitHub won't sign commits created using the REST API with personal access tokens. Since the REST API generally uses more of your rate limit, it can be disabled with the `no-rest-fallback` option.
+
+Pushing commits with multiple parents (i.e., merge commits) is entirely unsupported and will fail.
+
+If pushing a range of commits, it will push as many as it can before failing on one with unsupported content.
+
+The newly created commits will not be automatically pulled, but the new hashes are returned and can be used to update the local repository with `git reset --soft` after fetching them.
+
+This tool is very robust:
+- All input is validated and all errors are checked.
+- The behaviour is not affected by differences in the local git config, including:
+  - Working tree line ending conversions (e.g.,[`core.autocrlf`](https://git-scm.com/docs/git-config#Documentation/git-config.txt-coreautocrlf)).
+  - Diff configuration (e.g., [`diff.renames`](https://git-scm.com/docs/git-config#Documentation/git-config.txt-diffrenames))
+  - Commit message encoding (e.g., [`i18n.commitEncoding`](https://git-scm.com/docs/git-config#Documentation/git-config.txt-i18ncommitEncoding))
+- Retries failed API calls with automatic throttling.
+- Comprehensive test suite.
+- Tested on Linux, Windows, and macOS.
+- 100% hand-coded and tested.
+- Release tags are immutable.
+- Uses NPM trusted publishing.
+- Zero NPM dependencies.
+- Follows semantic versioning.
 
 ### Usage
 
@@ -127,6 +173,14 @@ npm install --save push-signed-commits@v1.0.2
     # base64-encoded or contain escaped ('\n') newlines.
     app-key: ''
 
+    # Do not attempt to use the REST API to create new branches, or to create
+    # commits which can't be represented using the GraphQL API. Note that
+    # creating commits via the REST API generally uses more of your rate limit.
+    # Signing only works with GitHub App tokens (including the one from GitHub
+    # Actions), not personal access tokens, and if the commit wasn't signed
+    # successfully, an error will be thrown by this action.
+    no-rest-fallback: false
+
     # The git binary to use. If not sepecified, the one in the PATH is used.
     git-binary: ''
 ```
@@ -181,8 +235,10 @@ usage: npx -y push-signed-commits@v1.0.2 [options] username/repository target_br
       --github-grqphql-url url  github graphql api url (env GITHUB_GRAPHQL_URL) (default "https://api.github.com/graphql")
       --app id                  authenticate as a github app with the specified id (overrides --github-token)
       --app-key pem             the private key to use if authenticating as a github app (can be base64-encoded or contain escaped newlines) (env APP_PRIVATE_KEY)
+      --no-rest-fallback        do not attempt to use the rest api to create new branches or to create commits which cannot be represented with the graphql api (see the README for more info)
       --git cmd                 the git executable to use (default "git")
   -h, --help                    show this help text
+  -v, --verbose                 show debug output
   -C  path                      repository path (default ".")
 
 revision is a commit or range of commits (see man gitrevisions(7))
@@ -301,54 +357,6 @@ try {
   throw err
 }
 ```
-
-### Features
-
-- Highly flexible commit selection.
-  - Supports pushing a single commit.
-  - Supports pushing a range of existing commits using git's native revision [syntax](https://git-scm.com/docs/gitrevisions).
-  - Supports pushing a new commit from the staging area.
-- Guarantees the correctness and fidelity of pushed commits.
-  - Supports pushing empty commits.
-  - Specifies the expected parent commit while pushing.
-  - Preserves multi-line commit message subjects and bodies.
-  - Converts non-utf-8 commit messages to utf-8.
-  - Refuses to push commits which can't be fully represented via the API, including ones with:
-    - Symlink update/creation.
-    - Submodule update/creation.
-    - Non-regular (i.e., executable) file update/creation.
-    - *Note: I've opened a [feature request](https://github.com/orgs/community/discussions/191953) to add support for these types.*
-  - Uses git to do the diffing natively and reads directly from the repository rather than the working directory (unlike a few of the similar alternatives).
-    - The contents will be correct.
-    - The `core.autocrlf` option will be applied consistently (since git does it when adding to the index).
-    - Uses plumbing commands (e.g., `diff-tree` vs `diff`) to avoid being affected by the local git config.
-    - Supports [unusual](https://git-scm.com/docs/git-config#Documentation/git-config.txt-corequotePath) filenames with special characters (newlines, tabs, quotes, backslashes, non-printable characters, etc) by using null-terminated output.
-- Cross-platform support.
-  - Automatically tested with multiple node versions on Windows, macOS, and Linux.
-  - Commited file contents are not affected by `core.autocrlf`.
-  - Subprocess arguments are handled correctly.
-  - Only host dependency is node (at least 24) and git (at least 2.24, released on 2019-11-04).
-- All input is validated and all errors are checked.
-- Automatically retries failed API calls.
-- Supports automatically creating and revoking an app installation token.
-- 100% hand-coded and tested.
-
-### Limitations
-
-- The [`createCommitOnBranch`](https://docs.github.com/en/graphql/reference/mutations#createcommitonbranch) GraphQL mutation has some limitations:
-  - On the commit:
-    - Extremely large commits may fail due to size restrictions in the API.
-    - The GraphQL API rate limit applies (unlike regular push operations).
-    - Does not support creating new branches, the target branch must already exist.
-  - On the commit metadata:
-    - The author/commit date will be replaced with the current date.
-    - The author will be replaced with the name/email associated with the token's owner.
-    - The committer will be replaced with the web flow one (currently `GitHub <noreply@github.com>`).
-    - The commit hash will change (obviously).
-  - On the commit contents:
-    - Does not support pushing commits with multiple parents (i.e., merge commits).
-    - Does not support pushing commits containing changes to non-regular files (e.g., symlinks, submodules, executables).
-- The local repository will not be automatically updated to the newly created commits (if you want that, fetch then do a `git reset --soft` to the last commit printed).
 
 ### Compatibility
 

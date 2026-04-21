@@ -14,7 +14,7 @@ export type { Commit, CommitFile } from './core/commit.ts'
  * @param git Name or path of the git binary.
  * @param repo Path to the git repository (may be relative).
  * @param message Commit message.
- * @returns An object representing the commit.
+ * @returns An object representing the commit, throwing a {@link NotPushableError} if it contains unsupported changes.
  */
 export async function staged(git: string, repo: string, message: string): Promise<Commit> {
   const r = await repo_(git, repo)
@@ -26,7 +26,7 @@ export async function staged(git: string, repo: string, message: string): Promis
  * @param git Name or path of the git binary.
  * @param repo Path to the git repository (may be relative).
  * @param revision Commits (see man {@link https://git-scm.com/docs/gitrevisions|gitrevisions[7]}).
- * @returns An object representing each commit in the range in graph order.
+ * @returns An object representing each commit in the range in graph order, throwing a {@link NotPushableError} if it contains unsupported changes.
  */
 export async function* commits(git: string, repo: string, revision: string): AsyncGenerator<Commit> {
   const r = await repo_(git, repo)
@@ -38,7 +38,7 @@ export async function* commits(git: string, repo: string, revision: string): Asy
  * @param git Name or path of the git binary.
  * @param repo Path to the git repository (may be relative).
  * @param commit The commit to create.
- * @returns The createCommitOnBranch input, throwing a {@link NotPushableError} if it contains unpushable changes.
+ * @returns The createCommitOnBranch input, throwing a {@link NotPushableError} if it contains unsupported changes.
  */
 export async function createCommitOnBranchInput(git: string, repo: string, commit: Commit): Promise<Omit<CreateCommitOnBranchInput, 'branch'>> {
   const r = await repo_(git, repo)

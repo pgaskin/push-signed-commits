@@ -74,6 +74,7 @@ export function inputs(env: NodeJS.ProcessEnv): Input {
     githubGraphqlUrl: getUrlInput('github-graphql-url') as GitHubGraphqlUrl || env['GITHUB_GRAPHQL_URL'] as GitHubGraphqlUrl || DefaultGitHubGraphql,
     appId: getIntegerInput('app-id') ?? null,
     appKey: getKeyInput('app-key') ?? null,
+    noRestFallback: getBoolInput('no-rest-fallback') ?? false,
     git: getInput('git-binary') || 'git',
   }
 }

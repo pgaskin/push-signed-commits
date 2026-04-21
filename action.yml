@@ -84,6 +84,15 @@ inputs:
     description:
       The private key to use if authenticating as a GitHub App. Can be
       base64-encoded or contain escaped ('\n') newlines.
+  no-rest-fallback:
+    description:
+      Do not attempt to use the REST API to create new branches, or to create
+      commits which can't be represented using the GraphQL API. Note that
+      creating commits via the REST API generally uses more of your rate limit.
+      Signing only works with GitHub App tokens (including the one from GitHub
+      Actions), not personal access tokens, and if the commit wasn't signed
+      successfully, an error will be thrown by this action.
+    default: false
   git-binary:
     description:
       The git binary to use. If not sepecified, the one in the PATH is used.

@@ -1,9 +1,13 @@
 import {
-  type BlobOID, type CommitOID, type GitDiffEntry, type OID, type Repo,
+  type BlobOID, type CommitOID, type GitDiffEntry, type OID, type Repo, type TreeOID,
   diffStatus, isKnownMode as isKnownTreeMode, prettyTreeMode, splitCommitMessage,
   treeMode,
 } from "./git.ts"
-import { type CreateCommitOnBranchInput, encodeBase64 } from "./github.ts"
+import {
+  type CreateCommitOnBranchInput,
+  type CreateBlobInput, type CreateCommitInput, type CreateTreeInput,
+  encodeBase64,
+} from "./github.ts"
 import { debuglog, jsonify } from '../util/util.ts'
 
 const debug = debuglog('commit') // NODE_DEBUG=commit
@@ -108,6 +112,37 @@ export async function changes(repo: Repo, diff: GitDiffEntry[], commit?: CommitO
     }
   }
   return files
+}
+
+/**
+ * Convert the commit into input for the POST /repos/{owner}/{repo}/git/blobs
+ * endpoint, throwing a {@link NotPushableError} if it contains something not
+ * supported.
+ */
+export async function* createBlobInput(repo: Repo, commit: Commit): AsyncGenerator<CreateBlobInput> {
+  throw new Error('TODO')
+}
+
+/**
+ * Convert the commit into input for the POST /repos/{owner}/{repo}/git/trees
+ * endpoint, throwing a {@link NotPushableError} if it contains something not
+ * supported.
+ */
+export async function createTreeInput(commit: Commit, blobs: readonly BlobOID[], baseTree?: TreeOID): Promise<CreateTreeInput> {
+  throw new Error('TODO')
+}
+
+/**
+ * Convert the commit into input for the POST /repos/{owner}/{repo}/git/commits
+ * endpoint, throwing a {@link NotPushableError} if it contains something not
+ * supported.
+ */
+export async function createCommitInput(commit: Commit, tree: TreeOID): Promise<CreateCommitInput> {
+  return {
+    message: commit.message,
+    parents: commit.parents,
+    tree,
+  }
 }
 
 /**

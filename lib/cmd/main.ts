@@ -27,6 +27,7 @@ export interface Input {
   githubGraphqlUrl: GitHubGraphqlUrl,
   appId: number | null,
   appKey: KeyObject | null,
+  noRestFallback: boolean,
   git: string,
 }
 

@@ -73,6 +73,7 @@ const spec = {
   githubGraphqlUrl: { type: 'str', kind: 'url', long: 'github-grqphql-url', env: 'GITHUB_GRAPHQL_URL', help: 'github graphql api url', default: DefaultGitHubGraphql, parse: u => (validateBaseUrl(u), u as GitHubGraphqlUrl) }, // env is standard
   appId: { type: 'str', kind: 'id', long: 'app', help: 'authenticate as a github app with the specified id (overrides --github-token)', parse: n => n ? parseInteger(n) : null },
   appKey: { type: 'str', kind: 'pem', long: 'app-key', env: 'APP_PRIVATE_KEY', help: 'the private key to use if authenticating as a github app (can be base64-encoded or contain escaped newlines)', parse: s => s ? parsePrivateKey(s) : null },
+  noRestFallback: { type: 'bool', long: 'no-rest-fallback', help: 'do not attempt to use the rest api to create new branches or to create commits which cannot be represented with the graphql api (see the README for more info)' },
   git: { type: 'str', kind: 'cmd', long: 'git', help: 'the git executable to use', default: 'git' },
   help: { type: 'bool', short: 'h', long: 'help', help: 'show this help text' },
   verbose: { type: 'bool', short: 'v', long: 'verbose', help: `show debug output` },
