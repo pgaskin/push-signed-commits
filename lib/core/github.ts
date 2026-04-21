@@ -1,5 +1,5 @@
 import { type KeyObject, createSign } from 'node:crypto'
-import type { CommitOID, OID } from './git.ts'
+import type { BlobOID, CommitOID, OID, TreeOID } from './git.ts'
 import { debuglog, jsonify } from '../util/util.ts'
 
 const debug = debuglog('github') // NODE_DEBUG=github
@@ -111,6 +111,73 @@ export async function revokeInstallationToken(gh: GitHubApiUrl, token: GitHubIns
   if (resp.status !== 204) {
     throw new Error(jsonify`Response status ${resp.status} (body: ${text})`)
   }
+}
+
+export interface CreateBlobInput {
+  content: string,
+  encoding: 'utf-8' | 'base64',
+}
+
+/** Create a blob. */
+export async function createBlob(gh: GitHubApiUrl, token: GitHubToken, repo: string, input: CreateBlobInput): Promise<BlobOID> {
+  const [resp, text] = await request(gh, token, 'POST', `repos/${repo}/git/blobs`, input)
+  if (resp.status !== 201) {
+    throw new Error(jsonify`Response status ${resp.status} (body: ${text})`)
+  }
+  const obj = JSON.parse(text) as {
+    sha: BlobOID,
+  }
+  if (typeof obj?.sha !== 'string') {
+    throw new Error(jsonify`Response missing blob sha (body: ${text})`)
+  }
+  return obj.sha
+}
+
+export interface CreateTreeInput {
+  base_tree?: TreeOID,
+  tree: {
+    path: string, // if has slashes, w100664ill create nested trees automatically
+    mode: '100644' | '100755' | '040000' | '120000' | '160000',
+    type: 'blob' | 'tree' | 'commit',
+    sha: OID | null, // if base_tree is set, null removes the entry from the tree (mode and type are ignored, but must be valid)
+  }[],
+}
+
+/** Create a tree. */
+export async function createTree(gh: GitHubApiUrl, token: GitHubToken, repo: string, input: CreateTreeInput): Promise<TreeOID> {
+  const [resp, text] = await request(gh, token, 'POST', `repos/${repo}/git/trees`, input)
+  if (resp.status !== 201) {
+    throw new Error(jsonify`Response status ${resp.status} (body: ${text})`)
+  }
+  const obj = JSON.parse(text) as {
+    sha: TreeOID,
+  }
+  if (typeof obj?.sha !== 'string') {
+    throw new Error(jsonify`Response missing tree sha (body: ${text})`)
+  }
+  return obj.sha
+}
+
+export interface CreateCommitInput {
+  message: string,
+  parents: CommitOID[],
+  tree: TreeOID,
+  // there's more, but we don't need it
+}
+
+/** Create a commit. */
+export async function createCommit(gh: GitHubApiUrl, token: GitHubToken, repo: string, input: CreateCommitInput): Promise<CommitOID> {
+  const [resp, text] = await request(gh, token, 'POST', `repos/${repo}/git/commits`, input)
+  if (resp.status !== 201) {
+    throw new Error(jsonify`Response status ${resp.status} (body: ${text})`)
+  }
+  const obj = JSON.parse(text) as {
+    sha: CommitOID,
+  }
+  if (typeof obj?.sha !== 'string') {
+    throw new Error(jsonify`Response missing commit sha (body: ${text})`)
+  }
+  return obj.sha
 }
 
 /** Make a GitHub REST API request. */

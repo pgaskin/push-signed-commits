@@ -40,6 +40,7 @@ npm install --save push-signed-commits@v1.2.0
 
 ### Features
 
+
 This tool is cross-platform and available as a:
 - [GitHub Action](https://github.com/marketplace/actions/push-signed-commits)
 - [CLI tool](https://github.com/pgaskin/push-signed-commits#cli)
@@ -70,6 +71,8 @@ The [`createCommitOnBranch`](https://docs.github.com/en/graphql/reference/mutati
 - Symbolic links.
 - Submodules.
 - Non-regular (i.e., executable) files.
+
+If the GraphQL mutation fails, this action will attempt to use the REST API instead. The REST API fallback is not supported for non-app/actions tokens because GitHub won't sign commits created using the REST API with personal access tokens. Since the REST API generally uses more of your rate limit, it can be disabled with the `no-rest-fallback` option.
 
 Pushing commits with multiple parents (i.e., merge commits) is entirely unsupported and will fail.
 
@@ -171,6 +174,14 @@ This tool is very robust:
     # base64-encoded or contain escaped ('\n') newlines.
     app-key: ''
 
+    # Do not attempt to use the REST API to create new branches, or to create
+    # commits which can't be represented using the GraphQL API. Note that
+    # creating commits via the REST API generally uses more of your rate limit.
+    # Signing only works with GitHub App tokens (including the one from GitHub
+    # Actions), not personal access tokens, and if the commit wasn't signed
+    # successfully, an error will be thrown by this action.
+    no-rest-fallback: false
+
     # The git binary to use. If not sepecified, the one in the PATH is used.
     git-binary: ''
 ```
@@ -225,6 +236,7 @@ usage: npx -y push-signed-commits@v1.2.0 [options] username/repository target_br
       --github-grqphql-url url  github graphql api url (env GITHUB_GRAPHQL_URL) (default "https://api.github.com/graphql")
       --app app-id|client-id    authenticate as a github app with the specified id (overrides --github-token)
       --app-key pem             the private key to use if authenticating as a github app (can be base64-encoded or contain escaped newlines) (env APP_PRIVATE_KEY)
+      --no-rest-fallback        do not attempt to use the rest api to create new branches or to create commits which cannot be represented with the graphql api (see the README for more info)
       --git cmd                 the git executable to use (default "git")
   -h, --help                    show this help text
   -v, --verbose                 show debug output
