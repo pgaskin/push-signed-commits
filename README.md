@@ -3,6 +3,7 @@
 Create verified/signed commits as bots or GitHub Actions.
 
 - Zero dependencies, cross-platform.
+- Tested on Windows/macOS/Linux.
 - Available as a GitHub Action, standalone CLI, or library.
 - Uses an existing commit, a range of commits, or a new commit with staged changes.
 - Commits will be authored by the owner of the token.
@@ -10,6 +11,7 @@ Create verified/signed commits as bots or GitHub Actions.
 - Preserves the full commit message, but resets the committed/authored date.
 - The new commits are not pulled automatically, but you can get the hash from the outputs.
 - Rejects commits containing content not supported by the [`createCommitOnBranch`](https://docs.github.com/en/graphql/reference/mutations#createcommitonbranch) mutation including executable files, symlinks, gitlinks, merge commits.
+- Not vibe-coded.
 
 ### Quick Start
 
@@ -321,14 +323,15 @@ try {
     - The `core.autocrlf` option will be applied consistently (since git does it when adding to the index).
     - Uses plumbing commands (e.g., `diff-tree` vs `diff`) to avoid being affected by the local git config.
     - Supports [unusual](https://git-scm.com/docs/git-config#Documentation/git-config.txt-corequotePath) filenames with special characters (newlines, tabs, quotes, backslashes, non-printable characters, etc) by using null-terminated output.
-- High-quality implementation:
-  - Much more error checking and validation than other similar tools.
-  - Minimal implementation.
-  - No dependencies other than the native git command.
-  - Comprehensive cross-platform test suite.
-  - 100% hand-coded and tested.
+- Cross-platform support.
+  - Automatically tested with multiple node versions on Windows, macOS, and Linux.
+  - Commited file contents are not affected by `core.autocrlf`.
+  - Subprocess arguments are handled correctly.
+  - Only host dependency is node (at least 24) and git (at least 2.24, released on 2019-11-04).
+- All input is validated and all errors are checked.
 - Automatically retries failed API calls.
 - Supports automatically creating and revoking an app installation token.
+- 100% hand-coded and tested.
 
 ### Limitations
 
