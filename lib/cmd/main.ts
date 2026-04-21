@@ -2,7 +2,7 @@ import { type KeyObject, createPrivateKey } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { styleText } from 'node:util'
 import { type CommitOID, repo } from '../core/git.ts'
-import { NotPushableError, commits, staged } from '../core/commit.ts'
+import { NotPushableError, commits, createCommitOnBranchInput, staged } from '../core/commit.ts'
 import {
   type GitHubToken, type GitHubInstallationToken,
   type GitHubApiUrl,
@@ -118,14 +118,15 @@ export async function main(log: (msg?: string) => void, input: Input, done?: (ou
     }
     if (input.revision == null) {
       const commit = await staged(r, commitMessage)
-      if (!input.allowEmpty && commit.input.fileChanges.additions.length === 0 && commit.input.fileChanges.deletions.length === 0) {
+      const commitInput = await createCommitOnBranchInput(r, commit)
+      if (!input.allowEmpty && commit.changes.length === 0) {
         log(`${styleText('yellow', `No changes to commit from staging area`)}`)
       } else {
         log()
-        log(`${styleText('cyan', `${input.dryRun ? `Would push` : `Pushing`} new commit from staging area over ${input.repository}:${input.branch}@${commit.input.expectedHeadOid}`)}`)
-        logCommit(commit.input)
+        log(`${styleText('cyan', `${input.dryRun ? `Would push` : `Pushing`} new commit from staging area over ${input.repository}:${input.branch}@${commitInput.expectedHeadOid}`)}`)
+        logCommit(commitInput)
         if (!input.dryRun) {
-          const oid = await createCommitOnBranch(input.githubGraphqlUrl, token!, {branch, ...commit.input}) as CommitOID
+          const oid = await createCommitOnBranch(input.githubGraphqlUrl, token!, {branch, ...commitInput})
           log(`${styleText('green', `  = ${oid}`)}`)
           remoteOIDs.push(oid)
         }
@@ -133,21 +134,22 @@ export async function main(log: (msg?: string) => void, input: Input, done?: (ou
     } else {
       let prev: CommitOID | undefined
       for await (const commit of commits(r, input.revision)) {
+        const commitInput = await createCommitOnBranchInput(r, commit)
         if (prev) {
-          commit.input.expectedHeadOid = prev
+          commitInput.expectedHeadOid = prev
         }
         log()
-        log(`${styleText('cyan', `${input.dryRun ? `Would push` : `Pushing`} commit ${commit.local} over ${input.repository}:${input.branch}@${commit.input.expectedHeadOid}`)}`)
-        logCommit(commit.input)
+        log(`${styleText('cyan', `${input.dryRun ? `Would push` : `Pushing`} commit ${commit.oid} over ${input.repository}:${input.branch}@${commitInput.expectedHeadOid}`)}`)
+        logCommit(commitInput)
         if (!input.dryRun) {
-          const oid = await createCommitOnBranch(input.githubGraphqlUrl, token!, {branch, ...commit.input}) as CommitOID
+          const oid = await createCommitOnBranch(input.githubGraphqlUrl, token!, {branch, ...commitInput})
           remoteOIDs.push(oid)
           prev = oid
           log(`${styleText('green', ` = ${oid}`)}`)
         } else {
-          prev = commit.local!.replace(/./g, '?') as CommitOID
+          prev = commit.oid.replace(/./g, '?') as CommitOID
         }
-        localOIDs.push(commit.local!)
+        localOIDs.push(commit.oid!)
       }
       if (prev === undefined) {
         log(`${styleText('yellow', `No commits to push from ${input.revision}`)}`)

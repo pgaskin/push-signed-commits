@@ -258,7 +258,7 @@ APP_PRIVATE_KEY="$(< private.pem)" npx -y push-signed-commits@v1.0.2 -C other-re
 #### Library
 
 ```javascript
-import { NotPushableError, staged, commits, createCommitOnBranch } from 'push-signed-commits'
+import { NotPushableError, staged, commits, createCommitOnBranch, createCommitOnBranchInput } from './index.ts'
 
 const url = process.env['GITHUB_GRAPHQL_URL'] ?? 'https://api.github.com/graphql'
 const token = process.env['GITHUB_TOKEN'] ?? ''
@@ -273,25 +273,25 @@ if (!token) {
 
 try {
   for await (const c of await commits(git, path, 'HEAD@{u}..HEAD')) {
-    console.log(`pushing commit ${c.local}`)
+    console.log(`pushing commit ${c.oid}`)
     await createCommitOnBranch(url, token, {
       branch: {
         branchName: branch,
         repositoryNameWithOwner: repo,
       },
-      ...c.input,
+      ...await createCommitOnBranchInput(git, path, c),
     })
   }
 
   const c = await staged(git, path, 'new commit')
-  if (c.input.fileChanges.additions.length || c.input.fileChanges.deletions.length) {
+  if (c.changes.length) {
     console.log('pushing staged changes')
     await createCommitOnBranch(url, token, {
       branch: {
         branchName: branch,
         repositoryNameWithOwner: repo,
       },
-      ...c.input,
+      ...await createCommitOnBranchInput(git, path, c),
     })
   }
 } catch (err) {

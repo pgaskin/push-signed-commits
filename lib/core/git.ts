@@ -61,7 +61,30 @@ export const diffStatus = {
   typeChanged: 'T',
   unknown: 'X',
   unmerged: 'U',
-} as const
+} as const satisfies Record<string, string>
+
+/** Git tree entry modes as of git@v2.53.0/fsck.c:722-743. */
+export const treeMode = {
+  0o040000: 'tree',
+  0o100644: 'regular',
+  0o100664: 'regular', // legacy
+  0o100755: 'executable',
+  0o120000: 'symlink',
+  0o160000: 'gitlink',
+} as const satisfies Record<number, string>
+
+
+/** Checks if mode is in {@link treeMode}. */
+export function isKnownMode(mode: number): mode is keyof typeof treeMode {
+  return Number(mode) in treeMode
+}
+
+/** Format a tree mode as a human readable string or octal literal. */
+export function prettyTreeMode(mode: number): string {
+  return isKnownMode(mode)
+    ? treeMode[mode]
+    : mode.toString(8).padStart(6, '0')
+}
 
 // I might have gone a bit crazy with the typing here, but it was fun, I learned
 // a bit, and now correctness is enforced ¯\_(ツ)_/¯
@@ -118,6 +141,7 @@ export interface Repo {
   diffStaged: RepoFunc<typeof diffStaged>,
   diffTrees: RepoFunc<typeof diffTrees>,
   catFile: RepoFunc<typeof catFile>,
+  emptyTree: RepoFunc<typeof emptyTree>
 }
 
 type RepoFunc<F> = F extends (git: string, repo: string, ...args: infer P) => infer R ? (...args: P) => R : never
@@ -137,6 +161,7 @@ export async function repo(git: string, repo: string): Promise<Repo> {
     diffStaged: diffStaged.bind(null, git, gitDir),
     diffTrees: diffTrees.bind(null, git, gitDir),
     catFile: catFile.bind(null, git, gitDir),
+    emptyTree: emptyTree.bind(null, git, gitDir),
   }
 }
 
@@ -272,6 +297,13 @@ export async function catFile(git: string, repo: string, oid: BlobOID): Promise<
   return await run(true, git, repo, 'cat-file', '--end-of-options', 'blob', oid)
 }
 
+export async function emptyTree(git: string, repo: string): Promise<TreeOID> {
+  const out = await run(false, git, repo, `hash-object`, '-t', 'tree', '--stdin')
+  const oid = out.all('tree oid')
+  parseOID<TreeOID>(oid)
+  return oid
+}
+
 interface GitOutput extends IteratorObject<string, void, void> {
   /** Get the next newline/null-delimited (depending on -z) item. */
   next(): IteratorResult<string, void>
@@ -282,7 +314,10 @@ interface GitOutput extends IteratorObject<string, void, void> {
 function run<T extends boolean>(raw: T, git: string, dir: string | null, ...args: string[]): Promise<T extends true ? Buffer : GitOutput> {
   return new Promise((resolve, reject) => {
     debug(`${dir}: ${git} ${JSON.stringify(args)}`)
-    const child = spawn(git, [...(dir == null ? [] : ['-C', dir]), ...args])
+    const child = spawn(git, [...(dir == null ? [] : ['-C', dir]), ...args], {
+      stdio: 'pipe',
+    })
+    child.stdin.end()
     const stdout: Buffer[] = []
     const stderr: Buffer[] = []
     child.stdout.on('data', chunk => stdout.push(chunk))

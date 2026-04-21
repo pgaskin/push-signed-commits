@@ -1,7 +1,7 @@
-import { deepStrictEqual, ok, rejects } from 'node:assert'
+import { deepStrictEqual, ok, rejects, strictEqual } from 'node:assert'
 import { describe, it } from 'node:test'
 import { dummy, repoSuite } from '../lib/util/gittest.ts'
-import { type GitDiffEntry, peeledRev, repo as gitRepo } from '../lib/core/git.ts'
+import { type GitDiffEntry, peeledRev, repo as gitRepo, type Repo, type CommitOID } from '../lib/core/git.ts'
 import * as commit from '../lib/core/commit.ts'
 
 repoSuite('commit', fi => {
@@ -42,7 +42,7 @@ repoSuite('commit', fi => {
 
   function rejectsNotPushable(fn: () => Promise<void>) {
     return rejects(fn, (e: unknown) => {
-      ok(e instanceof commit.NotPushableError)
+      ok(e instanceof commit.NotPushableError, `${e}`)
       return true
     })
   }
@@ -53,19 +53,31 @@ repoSuite('commit', fi => {
     return entry
   }
 
-  describe('changes', () => {
+  describe('createCommitOnBranchInput', () => {
+    async function fileChangesFor(repo: Repo, diff: GitDiffEntry[], path?: string) {
+      const input = await commit.createCommitOnBranchInput(repo, {
+        message: 'fake\n\nbody',
+        changes: await commit.changes(repo, path ? [diffEntryFor(diff, path)] : diff),
+        parents: ['dummy' as CommitOID],
+      })
+      strictEqual(input.expectedHeadOid, 'dummy')
+      strictEqual(input.message.headline, 'fake')
+      strictEqual(input.message.body, 'body')
+      return input.fileChanges
+    }
+
     it('rejects updating executable file', async () => {
       const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c1, c4)
       await rejectsNotPushable(async () => {
-        await commit.changes(repo, [diffEntryFor(diff, 'script.sh')], c4)
+        await fileChangesFor(repo, diff, 'script.sh')
       })
     })
 
     it('does not reject deleting executable file', async () => {
       const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c4, c1)
-      const { additions, deletions } = await commit.changes(repo, [diffEntryFor(diff, 'script.sh')], c4)
+      const { additions, deletions } = await fileChangesFor(repo, diff, 'script.sh')
       deepStrictEqual(additions, [])
       deepStrictEqual(deletions, [
         { path: 'script.sh' },
@@ -76,14 +88,14 @@ repoSuite('commit', fi => {
       const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c1, c5)
       await rejectsNotPushable(async () => {
-        await commit.changes(repo, [diffEntryFor(diff, 'submodule')], c5)
+        await fileChangesFor(repo, diff, 'submodule')
       })
     })
 
     it('does not reject deleting submodule', async () => {
       const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c5, c1)
-      const { additions, deletions } = await commit.changes(repo, [diffEntryFor(diff, 'submodule')], c5)
+      const { additions, deletions } = await fileChangesFor(repo, diff, 'submodule')
       deepStrictEqual(additions, [])
       deepStrictEqual(deletions, [
         { path: 'submodule' },
@@ -94,14 +106,14 @@ repoSuite('commit', fi => {
       const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c1, s1)
       await rejectsNotPushable(async () => {
-        await commit.changes(repo, [diffEntryFor(diff, 'link.txt')], s1)
+        await fileChangesFor(repo, diff, 'link.txt')
       })
     })
 
     it('does not reject deleting symlink', async () => {
       const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(s1, s2)
-      const { additions, deletions } = await commit.changes(repo, [diffEntryFor(diff, 'link.txt')], s2)
+      const { additions, deletions } = await fileChangesFor(repo, diff, 'link.txt')
       deepStrictEqual(additions, [])
       deepStrictEqual(deletions, [
         { path: 'link.txt' },
@@ -111,7 +123,7 @@ repoSuite('commit', fi => {
     it('handles file additions', async () => {
       const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c1, c2)
-      const { additions, deletions } = await commit.changes(repo, diff)
+      const { additions, deletions } = await fileChangesFor(repo, diff)
       deepStrictEqual(additions.toSorted((a, b) => a.path.localeCompare(b.path)), [
         { path: 'file.txt', contents: 'Y29udGVudAo=' },
         { path: 'test.bin', contents: 'AAEC' },
@@ -122,7 +134,7 @@ repoSuite('commit', fi => {
     it('handles file deletions', async () => {
       const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c2, c1)
-      const { additions, deletions } = await commit.changes(repo, diff)
+      const { additions, deletions } = await fileChangesFor(repo, diff)
       deepStrictEqual(additions, [])
       deepStrictEqual(deletions, [
         { path: 'file.txt' },
@@ -133,45 +145,18 @@ repoSuite('commit', fi => {
     it('handles subdirectories', async () => {
       const repo = await gitRepo('git', tr.path)
       const diff = await repo.diffTrees(c2, c3)
-      const { additions, deletions } = await commit.changes(repo, diff)
+      const { additions, deletions } = await fileChangesFor(repo, diff)
       deepStrictEqual(additions, [
         { path: 'subdir/file1.txt', contents: 'dGVzdAo=' },
       ])
       deepStrictEqual(deletions, [])
     })
-  })
 
-  describe('staged', () => {
-    it('creates commit from staged changes', async () => {
-      const repo = await gitRepo('git', tr.path)
-      deepStrictEqual(await commit.staged(repo, 'subject\nmore subject\n\nbody\nmore body\n\nanother body'), {
-        input: {
-          message: {
-            headline: 'subject\nmore subject',
-            body: 'body\nmore body\n\nanother body',
-          },
-          fileChanges: {
-            additions: [
-              { path: 'staged', contents: 'Zm9v' },
-              { path: 'subdir/file', contents: 'YmF6' },
-            ],
-            deletions: [
-              { path: 'submodule' },
-            ],
-          },
-          expectedHeadOid: c5,
-        },
-        local: null,
-      })
-    })
-  })
-
-  describe('commits', () => {
     it('rejects root commit', async () => {
       const repo = await gitRepo('git', tr.path)
       await rejectsNotPushable(async () => {
         for await (const c of commit.commits(repo, 'single')) {
-          console.debug(c)
+          console.debug(await commit.createCommitOnBranchInput(repo, c))
         }
       })
     })
@@ -180,11 +165,28 @@ repoSuite('commit', fi => {
       const repo = await gitRepo('git', tr.path)
       await rejectsNotPushable(async () => {
         for await (const c of commit.commits(repo, 'merge')) {
-          console.debug(c)
+          console.debug(await commit.createCommitOnBranchInput(repo, c))
         }
       })
     })
+  })
 
+  describe('staged', () => {
+    it('creates commit from staged changes', async () => {
+      const repo = await gitRepo('git', tr.path)
+      deepStrictEqual(await commit.staged(repo, 'subject\nmore subject\n\nbody\nmore body\n\nanother body'), {
+        parents: [c5],
+        message: 'subject\nmore subject\n\nbody\nmore body\n\nanother body',
+        changes: [
+          { mode: 33188, oid: '19102815663d23f8b75a47e7a01965dcdc96468c', path: 'staged' },
+          { mode: 33188, oid: '3f9538666251333f5fa519e01eb267d371ca9c78', path: 'subdir/file' },
+          { mode: 0, path: 'submodule' },
+        ],
+      })
+    })
+  })
+
+  describe('commits', () => {
     it('handles empty range', async () => {
       const repo = await gitRepo('git', tr.path)
       deepStrictEqual(await Array.fromAsync(commit.commits(repo, 'main..main')), [])
@@ -194,64 +196,53 @@ repoSuite('commit', fi => {
       const repo = await gitRepo('git', tr.path)
       const locals = []
       for await (const c of commit.commits(repo, `${c1}..${c2}`)) {
-        locals.push(c.local)
+        locals.push(c.oid)
       }
       deepStrictEqual(locals, [c2])
+    })
+
+    it('creates commit from the root commit', async () => {
+      const repo = await gitRepo('git', tr.path)
+      deepStrictEqual(await Array.fromAsync(commit.commits(repo, e1)), [{
+        oid: e1,
+        parents: [],
+        message: 'initial commit\n',
+        changes: [],
+      }])
     })
 
     it('creates commits from existing commits', async () => {
       const repo = await gitRepo('git', tr.path)
       const commits = await Array.fromAsync(commit.commits(repo, `${e1}..${e4}`))
-      deepStrictEqual(commits, [{
-        input: {
-          expectedHeadOid: e1,
-          fileChanges: {
-            additions: [
-              { path: 'file.txt', contents: 'Y29udGVudAo=', },
-              { path: 'file1.txt', contents: 'Y29udGVudAo=', }
-            ],
-            deletions: [],
-          },
-          message: {
-            body: 'test',
-            headline: 'test commit',
-          },
+      deepStrictEqual(commits, [
+        {
+          oid: e2,
+          parents: [e1],
+          message: 'test commit\n\ntest',
+          changes: [
+            { mode: 33188, oid: 'd95f3ad14dee633a758d2e331151e950dd13e4ed', path: 'file.txt' },
+            { mode: 33188, oid: 'd95f3ad14dee633a758d2e331151e950dd13e4ed', path: 'file1.txt' },
+          ],
         },
-        local: e2,
-      }, {
-        input: {
-          expectedHeadOid: e2,
-          fileChanges: {
-            additions: [
-              { path: 'file1.txt', contents: 'Y29udGVudCB1cGRhdGUK', },
-            ],
-            deletions: [
-              { path: 'file.txt' },
-            ],
-          },
-          message: {
-            body: '',
-            headline: 'another commit',
-          },
+        {
+          oid: e3,
+          parents: [e2],
+          message: '\nanother commit\n\n',
+          changes: [
+            { mode: 0, path: 'file.txt' },
+            { mode: 33188, oid: '6c629dadd05e98aef7f0dc87d2cb926be807f836', path: 'file1.txt' },
+          ],
         },
-        local: e3,
-      }, {
-        input: {
-          expectedHeadOid: e3,
-          fileChanges: {
-            additions: [
-              { path: 'file.txt', contents: 'Y29udGVudCB1cGRhdGUK', },
-              { path: 'file3.txt', contents: 'dGVzdAo=', },
-            ],
-            deletions: [],
-          },
-          message: {
-            body: 'test',
-            headline: 'test commit',
-          },
-        },
-        local: e4,
-      }])
+        {
+          oid: e4,
+          parents: [e3],
+          message: 'test commit\n\ntest',
+          changes: [
+            { mode: 33188, oid: '6c629dadd05e98aef7f0dc87d2cb926be807f836', path: 'file.txt' },
+            { mode: 33188, oid: '9daeafb9864cf43055ae93beb0afd6c7d144bfa4', path: 'file3.txt' },
+          ],
+        }
+      ])
     })
   })
 })

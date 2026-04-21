@@ -1,5 +1,5 @@
 import { type KeyObject, createSign } from 'node:crypto'
-import type { OID } from './git.ts'
+import type { CommitOID, OID } from './git.ts'
 import { debuglog, jsonify } from '../util/util.ts'
 
 const debug = debuglog('github') // NODE_DEBUG=github
@@ -183,7 +183,7 @@ export function encodeBase64(buf: Buffer): Base64String {
 const commitThrottle = throttle(1000) // according to the GitHub recommendations for throttling content-generating requests
 
 /** Create a commit using the GitHub GraphQL API. */
-export async function createCommitOnBranch(gh: GitHubGraphqlUrl, token: GitHubToken, input: CreateCommitOnBranchInput): Promise<GitObjectID> {
+export async function createCommitOnBranch(gh: GitHubGraphqlUrl, token: GitHubToken, input: CreateCommitOnBranchInput): Promise<CommitOID> {
   const url = new URL(gh)
   const method = 'POST'
   const headers = new Headers({
@@ -229,7 +229,7 @@ export async function createCommitOnBranch(gh: GitHubGraphqlUrl, token: GitHubTo
     data?: {
       createCommitOnBranch: {
         commit: {
-          oid: GitObjectID,
+          oid: CommitOID,
         },
       },
     },
