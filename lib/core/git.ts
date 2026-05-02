@@ -282,7 +282,10 @@ interface GitOutput extends IteratorObject<string, void, void> {
 function run<T extends boolean>(raw: T, git: string, dir: string | null, ...args: string[]): Promise<T extends true ? Buffer : GitOutput> {
   return new Promise((resolve, reject) => {
     debug(`${dir}: ${git} ${JSON.stringify(args)}`)
-    const child = spawn(git, [...(dir == null ? [] : ['-C', dir]), ...args])
+    const child = spawn(git, [...(dir == null ? [] : ['-C', dir]), ...args], {
+      stdio: 'pipe',
+    })
+    child.stdin.end()
     const stdout: Buffer[] = []
     const stderr: Buffer[] = []
     child.stdout.on('data', chunk => stdout.push(chunk))
