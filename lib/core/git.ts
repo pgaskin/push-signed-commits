@@ -141,6 +141,7 @@ export interface Repo {
   diffStaged: RepoFunc<typeof diffStaged>,
   diffTrees: RepoFunc<typeof diffTrees>,
   catFile: RepoFunc<typeof catFile>,
+  emptyTree: RepoFunc<typeof emptyTree>,
 }
 
 type RepoFunc<F> = F extends (git: string, repo: string, ...args: infer P) => infer R ? (...args: P) => R : never
@@ -160,6 +161,7 @@ export async function repo(git: string, repo: string): Promise<Repo> {
     diffStaged: diffStaged.bind(null, git, gitDir),
     diffTrees: diffTrees.bind(null, git, gitDir),
     catFile: catFile.bind(null, git, gitDir),
+    emptyTree: emptyTree.bind(null, git, gitDir),
   }
 }
 
@@ -293,6 +295,13 @@ async function parseRawDiff(out: GitOutput): Promise<GitDiffEntry[]> {
 
 export async function catFile(git: string, repo: string, oid: BlobOID): Promise<Buffer> {
   return await run(true, git, repo, 'cat-file', '--end-of-options', 'blob', oid)
+}
+
+export async function emptyTree(git: string, repo: string): Promise<TreeOID> {
+  const out = await run(false, git, repo, `hash-object`, '-t', 'tree', '--stdin')
+  const oid = out.all('tree oid')
+  parseOID<TreeOID>(oid)
+  return oid
 }
 
 interface GitOutput extends IteratorObject<string, void, void> {

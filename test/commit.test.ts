@@ -201,13 +201,13 @@ repoSuite('commit', fi => {
       deepStrictEqual(locals, [c2])
     })
 
-    it('rejects root commit', async () => {
+    it('creates commit from the root commit', async () => {
       const repo = await gitRepo('git', tr.path)
-      await rejectsNotPushable(async () => {
-        for await (const c of commit.commits(repo, e1)) {
-          console.debug(c)
-        }
-      })
+      deepStrictEqual(await Array.fromAsync(commit.commits(repo, e1)), [{
+        oid: e1,
+        message: 'initial commit\n',
+        changes: [],
+      }])
     })
 
     it('rejects merge commit', async () => {

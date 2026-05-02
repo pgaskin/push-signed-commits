@@ -322,6 +322,12 @@ repoSuite('git (repo)', fi => {
     })
   })
 
+  describe('emptyTree', () => {
+    it('returns the empty tree sha1', async () => {
+      deepStrictEqual(await git.emptyTree('git', tr.path), '4b825dc642cb6eb9a060e54bf8d69288fbee4904')
+    })
+  })
+
   describe('invalid arguments', () => {
     async function assertGitError(p: Promise<unknown>): Promise<void> {
       await rejects(p, (e: unknown) => {
