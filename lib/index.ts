@@ -1,5 +1,5 @@
-import { type Commit, staged as staged_, commits as commits_ } from './core/commit.ts'
-import { repo as repo_ } from './core/git.ts'
+import { staged as staged_, commits as commits_, createCommitOnBranchInput } from './core/commit.ts'
+import { type CommitOID, repo as repo_ } from './core/git.ts'
 import type { CreateCommitOnBranchInput, GitHubGraphqlUrl, GitHubToken, GitObjectID } from './core/github.ts'
 import { createCommitOnBranch as createCommitOnBranch_, withRetries as withMaxRetries, withUserAgent } from './core/github.ts'
 
@@ -19,13 +19,14 @@ export type {
   FileDeletion,
 } from "./core/github.ts"
 
-export type {
-  Commit,
-} from './core/commit.ts'
-
 export {
   NotPushableError,
 } from './core/commit.ts'
+
+export interface Commit {
+  input: Omit<CreateCommitOnBranchInput, 'branch'>,
+  local: CommitOID | null,
+}
 
 /**
  * Create a commit from staged changes.
@@ -36,7 +37,11 @@ export {
  */
 export async function staged(git: string, repo: string, message: string): Promise<Commit> {
   const r = await repo_(git, repo)
-  return await staged_(r, message)
+  const c = await staged_(r, message)
+  return {
+    input: await createCommitOnBranchInput(r, c),
+    local: null,
+  }
 }
 
 /**
@@ -48,7 +53,12 @@ export async function staged(git: string, repo: string, message: string): Promis
  */
 export async function* commits(git: string, repo: string, revision: string): AsyncGenerator<Commit> {
   const r = await repo_(git, repo)
-  yield* commits_(r, revision)
+  for await (const c of commits_(r, revision)) {
+    yield {
+      input: await createCommitOnBranchInput(r, c),
+      local: c.oid,
+    }
+  }
 }
 
 export interface CreateCommitOnBranchOptions {
