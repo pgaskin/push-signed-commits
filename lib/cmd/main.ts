@@ -126,7 +126,7 @@ export async function main(log: (msg?: string) => void, input: Input, done?: (ou
         log(`${styleText('cyan', `${input.dryRun ? `Would push` : `Pushing`} new commit from staging area over ${input.repository}:${input.branch}@${commitInput.expectedHeadOid}`)}`)
         logCommit(commitInput)
         if (!input.dryRun) {
-          const oid = await createCommitOnBranch(input.githubGraphqlUrl, token!, {branch, ...commitInput}) as CommitOID
+          const oid = await createCommitOnBranch(input.githubGraphqlUrl, token!, {branch, ...commitInput})
           log(`${styleText('green', `  = ${oid}`)}`)
           remoteOIDs.push(oid)
         }
@@ -142,7 +142,7 @@ export async function main(log: (msg?: string) => void, input: Input, done?: (ou
         log(`${styleText('cyan', `${input.dryRun ? `Would push` : `Pushing`} commit ${commit.oid} over ${input.repository}:${input.branch}@${commitInput.expectedHeadOid}`)}`)
         logCommit(commitInput)
         if (!input.dryRun) {
-          const oid = await createCommitOnBranch(input.githubGraphqlUrl, token!, {branch, ...commitInput}) as CommitOID
+          const oid = await createCommitOnBranch(input.githubGraphqlUrl, token!, {branch, ...commitInput})
           remoteOIDs.push(oid)
           prev = oid
           log(`${styleText('green', ` = ${oid}`)}`)
