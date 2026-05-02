@@ -19,7 +19,7 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "bin": "dist/cli.js",
+  "bin": "dist/cmd/cli.js",
   "engines": {
     "node": ">= 24"
   },
