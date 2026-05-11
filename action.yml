@@ -76,10 +76,11 @@ inputs:
       https://my-ghes-server.example.com/api/graphql).
   app-id:
     description:
-      Authenticate as a GitHub App with the specified ID. The installation ID
-      will be detected based on 'repository'. Overrides 'github-token'. The app
-      must have the 'contents:write' permission. If you already have an app
-      installation token, you can pass it via 'github-token' instead.
+      Authenticate as a GitHub App with the specified ID (App ID or Client ID).
+      The installation ID will be detected based on 'repository'. Overrides
+      'github-token'. The app must have the 'contents:write' permission. If you
+      already have an app installation token, you can pass it via 'github-token'
+      instead.
   app-key:
     description:
       The private key to use if authenticating as a GitHub App. Can be

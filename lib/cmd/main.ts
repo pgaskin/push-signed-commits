@@ -25,7 +25,7 @@ export interface Input {
   githubToken: GitHubToken | null,
   githubApiUrl: GitHubApiUrl,
   githubGraphqlUrl: GitHubGraphqlUrl,
-  appId: number | null,
+  appId: string | null,
   appKey: KeyObject | null,
   git: string,
 }
@@ -203,14 +203,6 @@ export function parsePrivateKey(str: string): KeyObject {
     key: str,
     format: 'pem',
   })
-}
-
-export function parseInteger(str: string): number {
-  const v = Number(str)
-  if (!Number.isInteger(v)) {
-    throw new TypeError(`Invalid integer`)
-  }
-  return v
 }
 
 export function validateBaseUrl(str: string) {

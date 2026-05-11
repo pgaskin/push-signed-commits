@@ -44,7 +44,7 @@ export function withUserAgent(token: GitHubToken, userAgent: string): GitHubToke
 }
 
 /** Creates a signed GitHub App JWT. */
-export function appJwt(appId: number, rsaKey: KeyObject): GitHubAppJwt {
+export function appJwt(appOrClientId: number | string, rsaKey: KeyObject): GitHubAppJwt {
   const header = Buffer.from(JSON.stringify({
     alg: 'RS256',
     typ: 'JWT',
@@ -54,7 +54,7 @@ export function appJwt(appId: number, rsaKey: KeyObject): GitHubAppJwt {
   const payload = Buffer.from(JSON.stringify({
     iat: now - 60,
     exp: now + 60,
-    iss: String(appId),
+    iss: String(appOrClientId),
   })).toString('base64url')
 
   const sign = createSign('RSA-SHA256')

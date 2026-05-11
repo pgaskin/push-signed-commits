@@ -13,7 +13,6 @@ import {
 import { debug, getInput, setOutput } from '../util/gha.ts'
 import {
   type Input, type Output, main as main_,
-  parseInteger,
   parsePrivateKey, validateBaseUrl,
 } from './main.ts'
 import { hookDebugLog, makeUserAgent } from '../util/util.ts'
@@ -72,7 +71,7 @@ export function inputs(env: NodeJS.ProcessEnv): Input {
     githubToken: getInput('github-token') as GitHubToken,
     githubApiUrl: getUrlInput('github-api-url') as GitHubApiUrl || env['GITHUB_API_URL'] as GitHubApiUrl || DefaultGitHubApi,
     githubGraphqlUrl: getUrlInput('github-graphql-url') as GitHubGraphqlUrl || env['GITHUB_GRAPHQL_URL'] as GitHubGraphqlUrl || DefaultGitHubGraphql,
-    appId: getIntegerInput('app-id') ?? null,
+    appId: getInput('app-id') ?? null,
     appKey: getKeyInput('app-key') ?? null,
     git: getInput('git-binary') || 'git',
   }
@@ -137,18 +136,6 @@ function getBoolInput(name: string): boolean | undefined {
         return false
     }
     throw new ActionInputError(name, `Invalid bool ${JSON.stringify(str)}`)
-  }
-  return
-}
-
-function getIntegerInput(name: string): number | undefined {
-  const str = getInput(name)
-  if (str !== '') {
-    try {
-      return parseInteger(str)
-    } catch (err) {
-      throw new ActionInputError(name, `${err instanceof Error ? err.message : err}`)
-    }
   }
   return
 }
