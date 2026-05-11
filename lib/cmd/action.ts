@@ -42,7 +42,7 @@ export async function main(opts: {
     const log = (msg?: string) => msg ? console.log(msg) : console.log()
     setRetryLog(msg => log(styleText(['dim', 'yellow'], msg)))
     hookDebugLog((section, msg) => {
-      debug(`[${section}] msg`) // secret ACTIONS_STEP_DEBUG
+      debug(`[${section}] ${msg}`) // secret ACTIONS_STEP_DEBUG
       return msg
     })
     return await main_(log, inputs(opts.env), outputs)
