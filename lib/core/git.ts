@@ -329,6 +329,7 @@ function run<T extends boolean>(raw: T, git: string, dir: string | null, ...args
       let out: any = Buffer.concat(stdout)
       if (!raw) {
         const all = out.toString('utf-8')
+        debug(`... git output: ${JSON.stringify(all)}`)
         out = function* (str) {
           const delim = args.includes('-z') ? '\x00' : '\n'
           while (str.length) {
