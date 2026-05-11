@@ -166,12 +166,19 @@ export async function repo(git: string, repo: string): Promise<Repo> {
 }
 
 async function absoluteGitDir(git: string, repo: string): Promise<string> {
-  const out = await run(false, git, repo, 'rev-parse', '--absolute-git-dir')
+  const out = await run(false, git, repo,
+    'rev-parse',          // parse revisions and options
+    '--absolute-git-dir', // absolute path to the .git dir (v2.13.0, a2f5a876)
+  )
   return out.all('git dir')
 }
 
 export async function head(git: string, repo: string): Promise<CommitOID> {
-  const out = await run(false, git, repo, 'rev-parse', '--verify', 'HEAD')
+  const out = await run(false, git, repo,
+    'rev-parse', // parse revisions and options
+    '--verify',  // single valid object or non-zero status (v0.99, 023d66ed)
+    'HEAD',      // rev
+  )
   for (const oid of out) {
     parseOID<CommitOID>(oid)
     return oid
@@ -182,13 +189,13 @@ export async function head(git: string, repo: string): Promise<CommitOID> {
 export async function commits(git: string, repo: string, revision: string): Promise<[CommitOID, parents: CommitOID[]][]> {
   const out = await run(false, git, repo,
     'rev-list',         // verify revs, list commits between them, and resolve them to their commit hash
-    //'-z',             // null-terminated output (don't use this since it is only supported in v2.49, and it isn't really needed for this command since it only outputs oids)
-    '--no-walk',        // if a single rev is specified, only resolve that one; ignored if a range is specified
-    '--topo-order',     // order by the commit graph, not the date
-    '--reverse',        // starting from the parent
-    '--first-parent',   // but only follow the first parent of merge commits (we'll filter those out later anyways)
-    '--parents',        // also show the commit parents
-    '--end-of-options', // prevent rev from being parsed as an option
+    //'-z',             // null-terminated output (don't use this since it is only supported in v2.50.0+, and it isn't really needed for this command since it only outputs oids) (v2.50.0, c3d59c2e)
+    '--no-walk',        // if a single rev is specified, only resolve that one; ignored if a range is specified (v1.5.3, 8e64006e)
+    '--topo-order',     // order by the commit graph, not the date (v0.99, d2d02a49)
+    '--reverse',        // starting from the parent (v1.5.1, 9c5e66e9)
+    '--first-parent',   // but only follow the first parent of merge commits (we'll filter those out later anyways) (v1.5.1, 0053e902)
+    '--parents',        // also show the commit parents (v0.99, 97658004)
+    '--end-of-options', // prevent rev from being parsed as an option (v2.24.0, 51b4594b)
     revision,           // rev
     '--',               // prevent rev from being parsed as a path
   )
@@ -212,11 +219,11 @@ export async function commits(git: string, repo: string, revision: string): Prom
 
 export async function message(git: string, repo: string, commit: Committish): Promise<string> {
   const out = await run(false, git, repo,
-    '-c', 'i18n.logOutputEncoding=UTF-8', // if the commit message is not UTF-8, re-encode it
+    '-c', 'i18n.logOutputEncoding=UTF-8', // if the commit message is not UTF-8, re-encode it (v1.5.0, d2c11a38)
     'show',                               // show a formatted object
-    '-s',                                 // only what we ask for, not the entire diff
-    '--format=%B',                        // raw commit message
-    '--end-of-options',                   // no more options
+    '-s',                                 // only what we ask for, not the entire diff (v1.4.1, c5ccd8be)
+    '--format=%B',                        // raw commit message (v1.7.2, 1367b12a)
+    '--end-of-options',                   // no more options (v2.24.0, 51b4594b)
     commit,                               // commit
   )
   return out.all('raw commit message')
@@ -234,11 +241,11 @@ export interface GitDiffEntry {
 export async function diffStaged(git: string, repo: string, tree: Treeish): Promise<GitDiffEntry[]> {
   const out = await run(false, git, repo,
     'diff-index',       // low-level tree diff
-    '-z',               // null-terminated
-    '-r',               // recurse into trees (and don't return the trees themselves)
-    '--raw',            // raw format
-    '--cached',         // only index (i.e.,  staging area), not working tree files
-    '--end-of-options', // no more options
+    '-z',               // null-terminated (v0.99, e74f8f6a)
+    '-r',               // recurse into trees (and don't return the trees themselves) (v0.99, bf16c71e)
+    '--raw',            // raw format (v1.4.2, a610786f)
+    '--cached',         // only index (i.e.,  staging area), not working tree files (v0.99, e74f8f6a)
+    '--end-of-options', // no more options (v2.24.0, 51b4594b)
     tree,               // target
   )
   return parseRawDiff(out)
@@ -247,10 +254,10 @@ export async function diffStaged(git: string, repo: string, tree: Treeish): Prom
 export async function diffTrees(git: string, repo: string, a: Treeish, b: Treeish): Promise<GitDiffEntry[]> {
   const out = await run(false, git, repo,
     'diff-tree',        // low-level tree diff
-    '-z',               // null-terminated
-    '-r',               // recurse into trees (and don't return the trees themselves)
-    '--raw',            // raw format
-    '--end-of-options', // no more options
+    '-z',               // null-terminated (v0.99, 6cbd72f8)
+    '-r',               // recurse into trees (and don't return the trees themselves) (v0.99, bf16c71e)
+    '--raw',            // raw format (v1.4.2, a610786f)
+    '--end-of-options', // no more options (v2.24.0, 51b4594b)
     a, b,               // trees
   )
   return parseRawDiff(out)
@@ -294,11 +301,20 @@ async function parseRawDiff(out: GitOutput): Promise<GitDiffEntry[]> {
 }
 
 export async function catFile(git: string, repo: string, oid: BlobOID): Promise<Buffer> {
-  return await run(true, git, repo, 'cat-file', '--end-of-options', 'blob', oid)
+  return await run(true, git, repo,
+    'cat-file',         // raw object access
+    '--end-of-options', // no more options (v2.24.0, 51b4594b)
+    'blob',             // expected type
+    oid,                // oid
+  )
 }
 
 export async function emptyTree(git: string, repo: string): Promise<TreeOID> {
-  const out = await run(false, git, repo, `hash-object`, '-t', 'tree', '--stdin')
+  const out = await run(false, git, repo,
+    'hash-object', // compute object id and optionally create the object
+    '-t', 'tree',  // type of the object (v0.99, 7672db20)
+    '--stdin',     // read object data from stdin (v0.99.9m, 024510c8)
+  )
   const oid = out.all('tree oid')
   parseOID<TreeOID>(oid)
   return oid
