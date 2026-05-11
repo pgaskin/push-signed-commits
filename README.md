@@ -217,7 +217,7 @@ usage: npx -y push-signed-commits@v1.2.0 [options] username/repository target_br
       --allow-empty             create en empty commit even if there are no changes
   -m, --message message         commit message to use if creating a new commit from the staging area
   -F, --file path               read the commit message from the specified (overrides --message)
-  -A, --user-agent str          override the user agent for GitHub API requests (default "push-signed-commits/1.1.1")
+  -A, --user-agent str          override the user agent for GitHub API requests (default "push-signed-commits/1.2.0")
   -k, --insecure                do not validate check tls certificates for GitHub API requests
   -n, --dry-run                 do not actually push commits, just print the mutations
       --github-token token      github token with contents:write permission (env GITHUB_TOKEN)

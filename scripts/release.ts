@@ -1,14 +1,8 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 
-const usage = await (async () => {
-  delete process.env['ACTIONS_ORCHESTRATION_ID'] // so it doesn't pollute the help text
-  const cli = await import('../lib/cmd/cli.ts')
-  return cli.usage
-})()
-
-function main() {
+async function main() {
   console.log(`Parsing package.json`)
   const obj = JSON.parse(readFileSync('package.json', 'utf-8'))
   const repo = obj.repository?.url?.replace(/^(git\+)?https:\/\/github\.com\//, '').replace(/\.git$/, '') ?? ''
@@ -55,6 +49,21 @@ function main() {
   console.log()
   console.log(`Releasing ${repo}@${version}`)
 
+  console.log("Updating package.json version")
+  updateFile('package.json', (pkg, eol) => {
+    return pkg.split(eol).map(x => x.includes('"version"') ? x.replace(new RegExp(versionRe.slice(1)), version.slice(1)) : x).join(eol)
+  })
+
+  console.log("Updating package-lock.json metadata")
+  spawnSync('npm install --package-lock-only --ignore-scripts', { stdio: 'inherit', shell: true }) // shell is needed on windows
+
+  console.log(`Importing command-line usage`)
+  const usage = await (async () => {
+    delete process.env['ACTIONS_ORCHESTRATION_ID'] // so it doesn't pollute the help text
+    const cli = await import('../lib/cmd/cli.ts')
+    return cli.usage
+  })()
+
   console.log("Updating README")
   updateFile('README.md', (readme, eol) => {
     if (!(new RegExp(`${repo}@v`, 'i')).test(readme)) throw new Error(`No action references found in README`)
@@ -89,14 +98,6 @@ function main() {
     ].join(eol))
     return readme
   })
-
-  console.log("Updating package.json version")
-  updateFile('package.json', (pkg, eol) => {
-    return pkg.split(eol).map(x => x.includes('"version"') ? x.replace(new RegExp(versionRe.slice(1)), version.slice(1)) : x).join(eol)
-  })
-
-  console.log("Updating package-lock.json metadata")
-  execFileSync('npm', ['install', '--package-lock-only', '--ignore-scripts'], { stdio: 'inherit', shell: true }) // shell is needed on windows
 }
 
 function updateFile(filename: string, fn: (contents: string, eol: string) => string) {
@@ -129,5 +130,5 @@ function updatePlaceholder(contents: string, eol: string, name: string, replacem
 }
 
 if (import.meta.main) {
-  main()
+  await main()
 }
