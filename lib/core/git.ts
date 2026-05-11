@@ -182,7 +182,7 @@ export async function head(git: string, repo: string): Promise<CommitOID> {
 export async function commits(git: string, repo: string, revision: string): Promise<[CommitOID, parents: CommitOID[]][]> {
   const out = await run(false, git, repo,
     'rev-list',         // verify revs, list commits between them, and resolve them to their commit hash
-    '-z',               // null-terminated output
+    //'-z',             // null-terminated output (don't use this since it is only supported in v2.49, and it isn't really needed for this command since it only outputs oids)
     '--no-walk',        // if a single rev is specified, only resolve that one; ignored if a range is specified
     '--topo-order',     // order by the commit graph, not the date
     '--reverse',        // starting from the parent
