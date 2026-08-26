@@ -71,7 +71,7 @@ export function inputs(env: NodeJS.ProcessEnv): Input {
     githubToken: getInput('github-token') as GitHubToken,
     githubApiUrl: getUrlInput('github-api-url') as GitHubApiUrl || env['GITHUB_API_URL'] as GitHubApiUrl || DefaultGitHubApi,
     githubGraphqlUrl: getUrlInput('github-graphql-url') as GitHubGraphqlUrl || env['GITHUB_GRAPHQL_URL'] as GitHubGraphqlUrl || DefaultGitHubGraphql,
-    appId: getInput('app-id') ?? null,
+    appId: getInput('app-id') || null,
     appKey: getKeyInput('app-key') ?? null,
     git: getInput('git-binary') || 'git',
   }
