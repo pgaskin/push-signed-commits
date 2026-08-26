@@ -46,7 +46,7 @@ export async function main(log: (msg?: string) => void, input: Input, done?: (ou
   let notPushable = false
   try {
     if (input.insecure) {
-      process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '1'
+      process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0'
     }
     setUserAgent(input.userAgent)
 

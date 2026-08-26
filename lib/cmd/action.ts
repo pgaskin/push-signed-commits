@@ -110,6 +110,7 @@ function getUrlInput(name: string): string | undefined {
     } catch (err) {
       throw new ActionInputError(name, `${err instanceof Error ? err.message : err}`)
     }
+    return str
   }
   return
 }
@@ -118,10 +119,11 @@ function getFileInput(name: string): string | undefined {
   const str = getInput(name)
   if (str !== '') {
     try {
-      return readFileSync(str, { encoding: 'utf-8' })
+      readFileSync(str, { encoding: 'utf-8' }) // fail early, main reads it itself
     } catch (err) {
       throw new ActionInputError(name, `Read file ${name}: ${err instanceof Error ? err.message : err}`)
     }
+    return str
   }
   return
 }
