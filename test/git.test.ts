@@ -394,5 +394,10 @@ function pathEqual(a: string, b: string, message?: string | Error): void {
   // node on windows may return 8.3 filenames
   a = realpathSync.native(normalize(a))
   b = realpathSync.native(normalize(b))
-  equal(a, b, message)
+  // so type checking passes
+  if (typeof message === 'string') {
+    equal(a, b, message)
+  } else {
+    equal(a, b, message)
+  }
 }
