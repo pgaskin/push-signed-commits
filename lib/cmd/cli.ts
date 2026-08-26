@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Console } from 'node:console'
+import { readFileSync } from 'node:fs'
 import { EOL } from 'node:os'
 import { styleText } from 'node:util'
 import {
@@ -64,7 +65,7 @@ export async function main(opts: {
 const spec = {
   allowEmpty: { type: 'bool', long: 'allow-empty', help: 'create en empty commit even if there are no changes' }, // matches git-commit
   commitMessage: { type: 'str', kind: 'message', short: 'm', long: 'message', help: 'commit message to use if creating a new commit from the staging area' }, // matches git-commit
-  commitMessageFile: { type: 'str', kind: 'path', short: 'F', long: 'file', help: 'read the commit message from the specified (overrides --message)', parse: p => p || null }, // matches git-commit
+  commitMessageFile: { type: 'str', kind: 'path', short: 'F', long: 'file', help: 'read the commit message from the specified (overrides --message)', parse: p => p ? readFileSync(p, { encoding: 'utf-8' }) : null }, // matches git-commit
   userAgent: { type: 'str', short: 'A', long: 'user-agent', default: makeUserAgent(), help: 'override the user agent for GitHub API requests' }, // matches curl
   insecure: { type: 'bool', short: 'k', long: 'insecure', help: 'do not validate check tls certificates for GitHub API requests' }, // matches curl
   dryRun: { type: 'bool', short: 'n', long: 'dry-run', help: 'do not actually push commits, just print the mutations' }, // matches most tools
@@ -107,7 +108,11 @@ export function inputs(env: NodeJS.ProcessEnv, argv: string[]): Input & {
     branch: args[1],
     revision: args.length > 2 ? args[2] : null,
   }
-  return {...opts, ...pos}
+  const {commitMessageFile, ...opt} = opts
+  return {
+    ...opt, ...pos,
+    commitMessage: commitMessageFile ?? opt.commitMessage,
+  }
 }
 
 if (import.meta.main) {

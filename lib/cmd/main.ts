@@ -1,5 +1,4 @@
 import { type KeyObject, createPrivateKey } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
 import { styleText } from 'node:util'
 import { type CommitOID, repo } from '../core/git.ts'
 import { NotPushableError, commits, createCommitOnBranchInput, staged } from '../core/commit.ts'
@@ -18,7 +17,6 @@ export interface Input {
   revision: string | null,
   allowEmpty: boolean,
   commitMessage: string,
-  commitMessageFile: string | null,
   userAgent: string,
   insecure: boolean,
   dryRun: boolean,
@@ -39,7 +37,6 @@ export interface Output {
 /** Generic entry point. */
 export async function main(log: (msg?: string) => void, input: Input, done?: (output: Output) => void): Promise<number> {
   let revoke: GitHubInstallationToken | undefined
-  let commitMessage: string
   let token: GitHubToken | undefined
   let localOIDs: CommitOID[] = []
   let remoteOIDs: CommitOID[] = []
@@ -62,17 +59,6 @@ export async function main(log: (msg?: string) => void, input: Input, done?: (ou
     let branch: CommittableBranch = {
       repositoryNameWithOwner: input.repository,
       branchName: input.branch,
-    }
-
-    // fail early to avoid surprises later
-    if (input.commitMessageFile != null) {
-      try {
-        commitMessage = await readFile(input.commitMessageFile, 'utf-8')
-      } catch (err) {
-        throw new Error(`Failed to read commit message from file ${JSON.stringify(input.commitMessageFile)}: ${err instanceof Error ? err.message : err}`)
-      }
-    } else {
-      commitMessage = input.commitMessage
     }
 
     // fail early so we don't create tokens we won't use
@@ -117,7 +103,7 @@ export async function main(log: (msg?: string) => void, input: Input, done?: (ou
       }
     }
     if (input.revision == null) {
-      const commit = await staged(r, commitMessage)
+      const commit = await staged(r, input.commitMessage)
       const commitInput = await createCommitOnBranchInput(r, commit)
       if (!input.allowEmpty && commit.changes.length === 0) {
         log(`${styleText('yellow', `No changes to commit from staging area`)}`)

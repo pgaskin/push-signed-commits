@@ -63,8 +63,7 @@ export function inputs(env: NodeJS.ProcessEnv): Input {
     branch: getInput('branch'),
     revision: getInput('revision') || null,
     allowEmpty: getBoolInput('allow-empty') ?? false,
-    commitMessage: getInput('commit-message'),
-    commitMessageFile: getFileInput('commit-message-file') ?? null,
+    commitMessage: getFileInput('commit-message-file') ?? getInput('commit-message'),
     userAgent: getInput('user-agent') || makeUserAgent(),
     insecure: getBoolInput('insecure') ?? false,
     dryRun: getBoolInput('dry-run') ?? false,
@@ -119,11 +118,10 @@ function getFileInput(name: string): string | undefined {
   const str = getInput(name)
   if (str !== '') {
     try {
-      readFileSync(str, { encoding: 'utf-8' }) // fail early, main reads it itself
+      return readFileSync(str, { encoding: 'utf-8' })
     } catch (err) {
       throw new ActionInputError(name, `Read file ${name}: ${err instanceof Error ? err.message : err}`)
     }
-    return str
   }
   return
 }
